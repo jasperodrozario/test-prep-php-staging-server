@@ -1,0 +1,74 @@
+# Dependency directories
+vendor/
+node_modules/
+
+# Sensitive files (database credentials, API keys)
+public_html/configs/config.php
+.env*
+
+# User uploads and generated content
+public_html/uploads/
+public_html/admin/uploads/
+public_html/admincp/uploads/
+public_html/sitemap.xml
+public_html/xml/sitemap.xml
+
+# Logs
+error_log
+*.log
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Server specific (environment-specific overrides)
+public_html/.htaccess
+
+# PHP specific
+composer.phar
+*.phpunit.result.cache
+
+
+# Others
+vendor_components/
+vendor_plugins/
+plugins/
+images/
+img/
+jquery-ui-1/
+ckfinder/
+jpgraph/
+fonts/
+uploads/
+js/
+gallery/
+summernote/
+kindeditor/
+dist/
+delete/
+calender/
+
+# assets
+assets/fonts/
+assets/img/
+assets/plugins/
+assets/vendor_components/
+assets/vendor_plugins/
+assets/vendor_css/
+assets/vendor_js/
+
+# temp files
+/practice-test/cache/
+/practice-test/captcha/
+/practice-test/ckfinder/
+/practice-test/dompdf/
+/practice-test/jpgraph/
+/admincp/calender/

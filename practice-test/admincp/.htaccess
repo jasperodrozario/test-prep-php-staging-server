@@ -1,0 +1,22 @@
+RewriteEngine On
+
+RewriteBase /practice-test/admincp/
+
+ 
+RewriteRule ^(templates|user)($|/) - [L]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+
+RewriteCond %{REQUEST_FILENAME} !-d
+
+
+ 
+RewriteRule ^(.+)$ application/$1.php [L,QSA]
+ 
+
+ 
+
+
+ 
+
+

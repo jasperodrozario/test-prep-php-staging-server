@@ -1,0 +1,108 @@
+RewriteEngine On
+RewriteBase /admincp
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(ckeditor|user|img|flags|uploads|upload_images|captcha|)($|/) - [L]
+
+#ajax
+ 
+RewriteRule ^ajax-admin$ application/ajax-admin.php
+
+
+RewriteRule ^account/login$             application/account/login.php
+RewriteRule ^account/logout$              application/account/logout.php
+RewriteRule ^account/dashboard$         application/account/dashboard.php
+
+ 
+RewriteRule ^account/logout$   application/logout-success.php
+
+#content
+RewriteRule ^content/([a-zA-Z0-9_-]+)$    application/content/page.php?action=$1
+
+#Blog
+RewriteRule ^blog/([a-zA-Z0-9_-]+)$    application/blog/blog.php?action=$1
+RewriteRule ^blog/([a-zA-Z0-9_-]+)/(.*)$    application/blog/blog.php?action=$1&id=$2
+
+#location
+RewriteRule ^location/([a-zA-Z0-9_-]+)$  application/location/location.php?action=$1
+
+#slider
+RewriteRule ^slider/([a-zA-Z0-9_-]+)$    application/slider/slider.php?action=$1
+RewriteRule ^slider/([a-zA-Z0-9_-]+)/(.*)$    application/slider/slider.php?action=$1&id=$2
+
+#category
+RewriteRule ^category/([a-zA-Z0-9_-]+)$    application/category/category.php?action=$1
+RewriteRule ^category/([a-zA-Z0-9_-]+)/(.*)$    application/category/category.php?action=$1&cat_id=$2
+
+#product
+RewriteRule ^course/([a-zA-Z0-9_-]+)$    application/course/course.php?action=$1
+RewriteRule ^course/([a-zA-Z0-9_-]+)/(.*)$    application/course/course.php?action=$1&product_id=$2
+
+ 
+#transaction
+RewriteRule ^transaction/([a-zA-Z0-9_-]+)$    application/transaction/transaction.php?action=$1
+RewriteRule ^transaction/([a-zA-Z0-9_-]+)/(.*)$    application/transaction/transaction.php?action=$1&id=$2
+
+ 
+#city
+RewriteRule ^city/([a-zA-Z0-9_-]+)$    application/city/city.php?action=$1
+RewriteRule ^city/([a-zA-Z0-9_-]+)/(.*)$    application/city/city.php?action=$1&id=$2
+
+#feedback
+RewriteRule ^feedback/([a-zA-Z0-9_-]+)$    application/feedback/feedback.php?action=$1
+RewriteRule ^feedback/([a-zA-Z0-9_-]+)/(.*)$    application/feedback/feedback.php?action=$1&id=$2
+
+ 
+ 
+#faq
+RewriteRule ^faq/([a-zA-Z0-9_-]+)$    application/faq/faq.php?action=$1
+RewriteRule ^faq/([a-zA-Z0-9_-]+)/(.*)$    application/faq/faq.php?action=$1&id=$2
+
+ 
+ 
+#master
+RewriteRule ^master/([a-zA-Z0-9_-]+)$    application/master/master.php?action=$1
+RewriteRule ^master/([a-zA-Z0-9_-]+)/(.*)$    application/master/master.php?action=$1&id=$2
+
+#mailsetup
+RewriteRule ^mailsetup/([a-zA-Z0-9_-]+)$    application/mailsetup/mailsetup.php?action=$1
+RewriteRule ^mailsetup/([a-zA-Z0-9_-]+)/(.*)$    application/mailsetup/mailsetup.php?action=$1&id=$2
+ 
+#enquiry
+RewriteRule ^enquiry/([a-zA-Z0-9_-]+)$    application/enquiry/enquiry.php?action=$1
+RewriteRule ^enquiry/([a-zA-Z0-9_-]+)/(.*)$    application/enquiry/enquiry.php?action=$1&id=$2
+
+#language
+RewriteRule ^language/([a-zA-Z0-9_-]+)$    application/language/language.php?action=$1
+RewriteRule ^language/([a-zA-Z0-9_-]+)/(.*)$    application/language/language.php?action=$1&id=$2
+ 
+ 
+#admin
+RewriteRule ^menu/list$    application/menu/menu.php?action=list
+RewriteRule ^menu/delete/(.*)$    application/menu/menu.php?action=delete&del_id=$1
+RewriteRule ^menu/add$    application/menu/menu.php?action=add
+RewriteRule ^menu/edit/(.*)$    application/menu/menu.php?action=edit&id=$1
+RewriteRule ^menu/add-sub/(.*)$    application/menu/menu.php?action=add-sub&parent_id=$1
+
+RewriteRule ^menu/list/(.*)$    application/menu/menu.php?parent_id=$1
+RewriteRule ^menu/menu-allot$    application/menu/menu.php?action=menu-allot
+
+RewriteRule ^setting/setting$ application/setting/setting.php
+ 
+RewriteRule ^activation/([0-9]+)$    application/activation.php?activation_code=$1 
+RewriteRule ^setting/change-password  application/setting/change-password.php
+RewriteRule ^setting/change-slider  application/setting/change_slider.php
+ 
+
+RewriteRule ^congratulation     application/congratulation.php 
+RewriteRule ^profile-update     application/profile_update.php
+
+
+
+#campaign
+RewriteRule ^newsletter/([a-zA-Z0-9_-]+)$    application/newsletter/newsletter.php?action=$1
+RewriteRule ^newsletter/([a-zA-Z0-9_-]+)/(.*)$    application/newsletter/newsletter.php?action=$1&id=$2
+ 
+ 
+

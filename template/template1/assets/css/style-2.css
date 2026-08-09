@@ -1,0 +1,672 @@
+/* New style add by Mahmud */
+/* 2nd-level positioning (desktop) */
+
+html,
+body {
+  min-height: 100%;
+  margin: 0; /* remove default margins */
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+footer {
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.nice-select .list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.form-notice {
+  text-align: center;
+  margin-bottom: 20px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #4caf50;
+  background-color: #f1f1f1;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+}
+
+.get-tutor_wrapper {
+  margin: 0px auto;
+  margin-bottom: 0px;
+}
+
+.userprofile-body {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+label {
+  font-weight: bold;
+}
+
+input[type="text"],
+input[type="email"],
+select {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+button.btn {
+  margin-top: 10px;
+}
+
+.error {
+  display: block;
+  margin-top: 5px;
+  color: #ff0000;
+}
+
+.container {
+  width: 100%;
+  padding: 0 15px;
+  margin: 0 auto;
+}
+
+.midle-conarea {
+  margin: 0 auto;
+}
+
+.mr-t88 {
+  margin-top: 88px;
+}
+
+.dashbord-panel {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-top: 20px;
+}
+
+.dashbord-panel .panel-heading {
+  background-color: #f5f5f5;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+  font-weight: bold;
+}
+
+.dashbord-panel .panel-body {
+  padding: 20px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.pull-left {
+  float: left;
+}
+
+/* Add more styles as needed */
+form {
+  display: flex;
+  flex-direction: column;
+}
+
+input[type="text"],
+input[type="email"],
+select,
+textarea {
+  padding: 10px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-size: 16px;
+}
+
+textarea {
+  resize: none;
+}
+
+button {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+.section-title h3 {
+  font-size: 36px;
+  color: #333;
+}
+
+.section-title p {
+  font-size: 16px;
+  color: #666;
+}
+
+h3 {
+  font-size: 24px;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.bottom-margin {
+  margin-bottom: 15px;
+}
+
+.section-title {
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.section-title h3 {
+  font-size: 36px;
+  color: #333;
+  /*        margin-bottom: 20px;*/
+}
+
+.section-title p {
+  font-size: 16px;
+  color: #666;
+}
+
+.bold {
+  font-weight: bold;
+  /* Make font bold */
+}
+
+.single-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 15px;
+  min-height: 300px;
+  margin: 30px 0;
+  border: 1px solid #8c8c8c;
+}
+
+.single-card:hover {
+  border: 1px solid #f90;
+}
+
+.single-card:hover .orange-color {
+  color: #f90;
+}
+
+.icon {
+  margin-bottom: 20px;
+  width: 50%;
+  height: 80%;
+}
+
+.section-title h3 {
+  font-size: 36px;
+  color: #333;
+  /*        margin-bottom: 20px;*/
+}
+
+.pricing-details-tutor {
+  /*        background-color: #f9f9f9;*/
+  border-radius: 5px;
+  margin-top: 10px;
+  text-align: left;
+}
+
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu > .dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-left: 0.1rem;
+  margin-right: 0.1rem;
+}
+
+.brand {
+  font-weight: 700;
+  color: #ffb607;
+  font-size: 20px;
+}
+
+.brand-description {
+  font-size: 14px;
+  color: #000;
+}
+.btn-primary {
+  color: #000;
+  background-color: #ffb607;
+  border-color: #ffb607;
+}
+.btn-warning {
+  color: #000;
+  background-color: #ffb607;
+  border-color: #ffb607;
+}
+.navbar-toggler {
+  background-color: #ffb607;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  transition: box-shadow 0.3s ease-in-out;
+}
+
+/* Smooth dropdown animation */
+.dropdown-menu {
+  max-height: 0;
+  overflow: hidden;
+  display: none;
+  /* Override Bootstrap's default display:none */
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    max-height 0.5s ease,
+    opacity 0.5s ease;
+}
+
+.dropdown.show .dropdown-menu {
+  max-height: 500px;
+  /* Adjust based on expected content height */
+  visibility: visible;
+  opacity: 1;
+}
+
+button:hover {
+  background-color: #ffb607;
+}
+
+.single-tutor {
+  border: 1px solid var(--white-color);
+  text-align: center;
+  padding: 82px 20px;
+  margin-top: 30px;
+  margin-bottom: 30px;
+  -webkit-transition: var(--transition);
+  transition: var(--transition);
+}
+.single-tutor-reg {
+  border: 2px solid #ffb607 !important;
+  text-align: center;
+  color: #111 !important;
+  height: 350px !important;
+  background-color: #8c8c8c;
+}
+.single-course a {
+  max-height: 350px !important;
+  overflow: hidden;
+}
+.himage {
+  width: 591px !important;
+  height: auto !important;
+  max-height: 350px !important;
+}
+.section-title {
+  padding-bottom: 30px;
+}
+.section-title span {
+  font-size: 25px;
+}
+
+.btn-gradient {
+  background: linear-gradient(180deg, #ffa200, #ff4d00, #ffa200); /* vertical */
+
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 40px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  height: 55px;
+  width: 200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.btn-gradient:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.modal-box {
+  background: #fff;
+  padding: 20px;
+  width: 450px;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-box textarea {
+  width: 100%;
+  height: 100px;
+  padding: 8px;
+  margin-top: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.modal-buttons {
+  margin-top: 15px;
+  display: flex;
+  justify-content: space-between;
+}
+
+@keyframes fadeIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.userprofile_wrapper {
+  margin: 20px auto;
+}
+
+.userprofile-body {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+label {
+  font-weight: bold;
+}
+
+input[type="text"],
+input[type="email"],
+select {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+button.btn {
+  margin-top: 10px;
+}
+
+.error {
+  display: block;
+  margin-top: 5px;
+  color: #ff0000;
+}
+
+.container {
+  width: 100%;
+  padding: 0 15px;
+  margin: 0 auto;
+}
+
+.midle-conarea {
+  margin: 0 auto;
+}
+
+.mr-t88 {
+  margin-top: 88px;
+}
+
+.dashbord-panel {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-top: 20px;
+}
+
+.dashbord-panel .panel-heading {
+  background-color: #f5f5f5;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+  font-weight: bold;
+}
+
+.dashbord-panel .panel-body {
+  padding: 20px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.pull-left {
+  float: left;
+}
+
+/* For tablets: 768px to 992px */
+@media only screen and (min-width: 768px) and (max-width: 992px) {
+  .brand {
+    font-weight: 600;
+    color: #ffb607;
+    font-size: 16px;
+  }
+
+  .brand-description {
+    font-size: 12px;
+    color: #000;
+  }
+  /* Reduce logo text size */
+  .navbar-brand span:first-child {
+    font-size: 16px;
+    /* TEST-PREP */
+  }
+  .navbar-brand span:last-child {
+    font-size: 12px;
+    /* Online Test Series */
+  }
+
+  /* Adjust logo image */
+  .navbar-brand img {
+    height: 40px;
+  }
+
+  /* Prevent overlap by spacing items */
+  .navbar-nav .nav-link {
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 14px;
+  }
+
+  /* Resize buttons */
+  .navbar .btn {
+    padding: 6px 5px;
+    font-size: 14px;
+  }
+
+  /* If still crowded, move buttons below logo */
+  .navbar .d-none.d-md-flex {
+    align-items: flex-end;
+  }
+  .banner-area-two .banner-content {
+    margin-top: 0;
+  }
+  .banner-content h1 {
+    color: var(--white-color);
+    font-size: 36px;
+    margin-bottom: 25px;
+  }
+  .banner-area-two .banner-img {
+    margin-top: 20px;
+    position: relative;
+    z-index: 0;
+  }
+  .overlay-text {
+    font-size: 16px;
+  }
+}
+/* Inside hamburger (mobile/tablet) */
+@media only screen and (max-width: 992px) {
+  .dropdown-submenu > .dropdown-menu {
+    position: static;
+    margin: 0.25rem 0 0 1rem;
+    border: 0;
+    box-shadow: none;
+  }
+}
+@media only screen and (max-width: 768px) {
+  .banner-area-two {
+    height: auto;
+    padding-top: 30px;
+    padding-bottom: 40px;
+  }
+  .banner-area-two .d-table,
+  .banner-area-two .d-table-cell {
+    height: auto;
+    display: block;
+  }
+  .banner-area-two .banner-content {
+    margin-top: 0;
+  }
+  .banner-content h1 {
+    color: var(--heading-color);
+    font-size: 28px;
+    margin-bottom: 20px;
+  }
+  .banner-area-two .banner-img {
+    margin-top: 20px;
+    position: relative;
+    z-index: 0;
+  }
+  .banner-area-two .banner-img [class*="banner-shape"] {
+    display: none;
+  }
+  .overlay-text {
+    font-size: 15px;
+  }
+}
+
+@media screen and (min-width: 320px) and (max-width: 500px) {
+  .page-title-area .page-title-content h2 {
+    margin-bottom: 15px;
+    color: var(--heading-color);
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .ptb-100 {
+    padding-top: 30px !important;
+    padding-bottom: 100px !important;
+  }
+  .page-title-area {
+    padding-top: 40px;
+    padding-bottom: 5px;
+  }
+}
+
+.square-card-wrap {
+  text-align: left;
+  margin-top: 5px;
+}
+
+.square-card-label {
+  display: block;
+  color: #fff;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.card-brand-row {
+  margin-bottom: 8px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.card-brand-label {
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+#card-container {
+  background: #fff;
+  border-radius: 6px;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 1px solid #d9d9d9;
+}
+
+.square-card-error {
+  margin-top: 8px;
+  color: #ffcccc;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.square-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.supported-cards {
+  margin-bottom: 8px;
+}
+
+.supported-cards img {
+  margin-right: 4px;
+  background: #fff;
+  border-radius: 3px;
+}
+
+.password-container {
+  position: relative;
+}
+
+.password-container i {
+  position: absolute;
+  top: 50%;
+  right: 5%;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+#change_pass_response {
+  display: none;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.password-container {
+  position: relative;
+}
+
+.password-container i {
+  position: absolute;
+  top: 50%;
+  right: 5%;
+  transform: translateY(-50%);
+  cursor: pointer;
+}

@@ -1,0 +1,38 @@
+<?php
+include("common/access.php");
+include("common/autoload.php");
+ 
+if($_POST['questions'])
+{
+    unset($_POST['questions']);
+    unset($_POST['submit']);
+	if($_POST['id'])
+	{
+  
+       $r=updateTable("questions",$_POST,array("id"=>$_POST['id']),array(""));
+	}
+	else
+	{
+	    unset($_POST['id']);
+	    $r=insertTable("questions",$_POST,array(""));
+	}
+    if($r)
+	{
+      echo $configs['success_msg'];
+    }
+    else
+	{
+	    echo $configs['error_msg'];
+	}
+ 	
+    
+}
+
+if($_POST['questions_form']  && $_POST['delete'])
+{
+  
+	$r=deleteData("questions",array("id"=>$_POST['id']));
+	echo $configs['delete_msg'];
+    
+}
+?>

@@ -1,0 +1,139 @@
+RewriteEngine On
+RewriteBase /practice-test/
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(ckeditor|user|img|flags|uploads|upload_images|captcha|)($|/) - [L]
+
+#RewriteRule ^([a-z_-]+)\/?$ $1.php [NC]
+
+RewriteRule ^notify$              application/notify.php
+
+RewriteRule ^thank-you$  application/thank-you.php [L] 
+
+RewriteRule ^renew-subscription/?$ /subscription-profile [R=301,L]
+
+RewriteRule ^regsiter-curl$              application/register-curl.php
+
+RewriteRule ^report-error$              application/report-error.php
+ 
+RewriteRule ^forgot-pass$ application/forgot-pass.php 
+
+RewriteRule ^ajax-home$ application/ajax_home.php
+RewriteRule ^chart-data/([0-9]+)/([a-zA-Z0-9_-]+)$ application/chart-data.php?cat_id=$1&cat_name=$2
+
+RewriteRule ^payment/([0-9]+)/([a-zA-Z0-9_-]+)$      application/pay.php?course_id=$1&name=$2
+
+RewriteRule ^login/(.*)/(.*)/([0-9]+)$               application/login.php?email=$1&password=$2&course_id=$3
+
+RewriteRule ^login/(.*)/(.*)$               application/login.php?email=$1&password=$2
+
+RewriteRule ^login-for-admin/(.*)/(.*)$               application/login-for-admin.php?email=$1&password=$2
+
+RewriteRule ^create-password/(.*)$     application/create-password.php?user_id=$1 [L]
+
+RewriteRule ^register$            application/register.php
+
+RewriteRule ^referral/([a-zA-Z0-9_-]+)$            application/register.php?referrer_id=$1
+
+
+
+
+RewriteRule ^login$               application/login.php
+RewriteRule ^logout$              application/logout.php
+RewriteRule ^info/logout-success$      application/logout-success.php
+ 
+RewriteRule ^contact$       application/contact.php
+RewriteRule ^my-dashboard$    application/my-dashboard.php
+
+
+RewriteRule ^activation/([0-9]+)$    application/activation.php?activation_code=$1 
+RewriteRule ^change-password$  application/change-password.php
+RewriteRule ^edit-profile$  application/edit-profile.php
+
+RewriteRule ^congratulation$     application/congratulation.php 
+RewriteRule ^profile-update$     application/profile_update.php
+
+
+RewriteRule ^test-details$    		 application/test-details.php 
+
+RewriteRule ^report/([0-9]+)-([a-zA-Z0-9_-]+)$      application/report.php?cat_id=$1&cat_name=$2
+
+
+RewriteRule ^homework/([0-9]+)-([a-zA-Z0-9_-]+)$      application/exam.php?cat_id=$1&cat_name=$2&homework=0
+
+RewriteRule ^homework/([0-9]+)-([a-zA-Z0-9_-]+)/([0-9]+)$      application/exam.php?cat_id=$1&cat_name=$2&set_no=$3&homework=1
+
+RewriteRule ^test/([0-9]+)-([a-zA-Z0-9_-]+)$      application/test.php?id=$1&name=$2
+
+RewriteRule ^exam/([0-9]+)-([0-9]+)-([a-zA-Z0-9_-]+)$      application/exam.php?id=$1&cat_id=$2&cat_name=$3
+ 
+RewriteRule ^exam/([a-zA-Z-]+)/([0-9]+)-([a-zA-Z0-9_-]+)/([0-9]+)/([0-9]+)$      application/exam.php?result=$1&cat_id=$2&cat_name=$3&lesson_id=$4&result_id=$5
+
+RewriteRule ^exam/([a-zA-Z-]+)/([0-9]+)-([a-zA-Z0-9_-]+)/([0-9]+)/([0-9]+)/([a-zA-Z-]+)$      application/exam.php?result=$1&cat_id=$2&cat_name=$3&lesson_id=$4&result_id=$5&filter=$6
+
+RewriteRule ^exam/([a-zA-Z-]+)/([0-9]+)-([a-zA-Z0-9_-]+)/([0-9]+)$ application/exam.php?result=$1&cat_id=$2&cat_name=$3&lesson_id=$4 [L]
+
+RewriteRule ^exam/([a-zA-Z-]+)/([0-9]+)-([a-zA-Z0-9_-]+)$      application/exam.php?result=$1&cat_id=$2&cat_name=$3
+
+RewriteRule ^exam/([a-zA-Z-]+)/([0-9]+)-([a-zA-Z0-9_-]+)-([0-9]+)-([a-zA-Z_-]+)$      application/exam.php?result=$1&cat_id=$2&cat_name=$3&child_cat_id=$4&lesson_name=$5
+
+
+RewriteRule ^exam/([a-zA-Z-]+)/([0-9]+)-([a-zA-Z0-9_-]+)/([0-9]+)-([a-zA-Z]+)$      application/exam.php?result=$1&cat_id=$2&&cat_name=$3&child_cat_id=$4&shortcode=$5
+ 
+RewriteRule ^exam/([a-zA-Z-]+)/([0-9]+)-([a-zA-Z0-9_-]+)/([a-zA-Z]+)$      application/exam.php?result=$1&cat_id=$2&cat_name=$3&action=$4
+
+# Redirect
+RewriteRule ^exam/progress-report/?$ exam/progress-report/2000-Overview [R=301,L]
+
+RewriteRule ^exam/progress-report$      application/exam.php?result=progress-report
+
+
+RewriteRule ^exam/([0-9]+)-([a-zA-Z0-9_-]+)$      application/exam.php?id=$1&name=$2&page=category-list
+
+RewriteRule ^exam/([a-zA-Z0-9-]+)-([0-9]+)$      application/exam.php?result=$1&flashcard_id=$2
+
+
+RewriteRule ^lesson-overview/([0-9]+)$      application/lesson-overview.php?lesson_id=$1
+
+
+RewriteRule ^lesson/([0-9]+)-([0-9]+)-([a-zA-Z0-9_-]+)$      application/lesson.php?cat_id=$1&lesson_id=$2&name=$3
+ 
+RewriteRule ^lesson/([0-9]+)-([0-9]+)-([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)$      application/lesson.php?cat_id=$1&lesson_id=$2&name=$3&in=$4
+RewriteRule ^lesson/([0-9]+)-([0-9]+)-([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)/([a-zA-Z_-]+)$      application/lesson.php?cat_id=$1&lesson_id=$2&name=$3&in=$4&action=$5
+
+
+RewriteRule ^lesson/([0-9]+)-([a-zA-Z0-9_-]+)$      application/lesson.php?cat_id=$1&cat_name=$2
+RewriteRule ^lesson/([0-9]+)-([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)$      application/lesson.php?&cat_id=$1&cat_name=$2&in=$3
+RewriteRule ^lesson/([0-9]+)-([0-9]+)-([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)/([0-9]+)$      application/lesson.php?cat_id=$1&lesson_id=$2&name=$3&in=$4&home_limit=$5
+
+ 
+RewriteRule ^information/([a-zA-Z0-9_-]+)$    application/page_app.php?seo_url=$1 
+
+RewriteRule ^info/([a-zA-Z0-9_-]+)$    application/page.php?seo_url=$1 
+
+RewriteRule ^video-play/([0-9_-]+)$ application/video-play.php?id=$1 
+
+
+RewriteRule ^report-student-list$               application/report-student-list.php
+
+RewriteRule ^tutor-view-report/([0-9]+)/([a-zA-Z-]+)$      application/tutor-view-report.php?student_id=$1&result=$2
+
+RewriteRule ^tutor-view-report/([0-9]+)/([a-zA-Z-]+)/([0-9]+)-([a-zA-Z0-9_-]+)$    application/tutor-view-report.php?student_id=$1&result=$2&cat_id=$3&cat_name=$4
+
+RewriteRule ^tutor-view-report/([0-9]+)/([a-zA-Z-]+)/([0-9]+)-([a-zA-Z0-9_-]+)/([0-9]+)/([0-9]+)$      application/tutor-view-report.php?student_id=$1&result=$2&cat_id=$3&cat_name=$4&lesson_id=$5&result_id=$6
+
+RewriteRule ^tutor-view-report/([0-9]+)/([a-zA-Z0-9_-]+)/([0-9]+)-([a-zA-Z0-9_-]+)/([0-9]+)/([0-9]+)$      application/tutor-view-report.php?student_id=$1&result=$2&cat_id=$3&cat_name=$4&lesson_id=$5&result_id=$6
+
+RewriteRule ^tutor-report/([0-9]+)/([0-9]+)-([a-zA-Z0-9_-]+)$      application/tutor-report.php?student_id=$1&cat_id=$2&cat_name=$3
+
+RewriteRule ^tutor-chart-data/([0-9]+)/([0-9]+)/([0-9]+)$    application/tutor-chart-data.php?student_id=$1&cat_id=$2&lesson_id=$3
+
+RewriteRule ^tutor-view-report/progress-report$      application/tutor-view-report.php?result=progress-report
+
+RewriteRule ^generate-pdf$      application/generate-pdf.php
+
+RewriteRule ^get-student-report$    		 application/get-student-report.php 
+
+ErrorDocument 404 "<center><h2>Sorry! We could not find the page.</h2></center>"
+

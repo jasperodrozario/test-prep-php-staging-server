@@ -1,0 +1,98 @@
+<IfModule mod_rewrite.c>
+	Options +FollowSymLinks
+	RewriteEngine on 
+	RewriteBase / 
+	
+	RewriteCond %{SCRIPT_FILENAME} !-d  
+	RewriteCond %{SCRIPT_FILENAME} !-f  
+	
+	RewriteRule ^ajax-home$ application/ajax_home.php
+    
+    RewriteRule ^get-tutor$  application/get-tutor.php
+
+	RewriteRule ^get-tutor-app$  application/get-tutor-app.php
+    
+	RewriteRule ^about$  application/about.php [L] 
+
+	RewriteRule ^login$  application/login.php [L] 
+
+	RewriteRule ^sitemap$  application/sitemap.php [L] 
+
+    RewriteRule ^course/([a-zA-Z0-9_-]+)$  application/course.php?seo_url=$1 [L]
+    RewriteRule ^([a-zA-Z-]+)/course/([a-zA-Z-]+)$       application/course.php?location=$1&seo_url=$2
+    RewriteRule ^([a-zA-Z-]+)/course/([a-zA-Z-]+)/$      application/course.php?location=$1&seo_url=$2
+        
+    RewriteRule ^course_updated/([a-zA-Z0-9_-]+)$  application/course_updated.php?seo_url=$1 [L]
+    RewriteRule ^([a-zA-Z-]+)/course_updated/([a-zA-Z-]+)$       application/course_updated.php?location=$1&seo_url=$2
+    RewriteRule ^([a-zA-Z-]+)/course_updated/([a-zA-Z-]+)/$      application/course_updated.php?location=$1&seo_url=$2
+ 
+	RewriteRule ^info/([a-zA-Z-]+)$  application/page.php?seo_url=$1  [L]
+
+	RewriteRule ^logout$   application/page.php?seo_url=logout  [L]	
+
+	RewriteRule ^register/([a-zA-Z-]+)$  application/register.php?seo_url=$1 [L] 
+
+	RewriteRule ^referral/([a-zA-Z0-9_-]+)$            application/register.php?referrer_id=$1
+
+	
+	RewriteRule ^affiliate-dashboard$  application/affiliate-dashboard.php [L] 
+
+	RewriteRule ^affiliate-dashboard/([a-zA-Z-]+)$   application/affiliate-dashboard.php?action=$1 [L] 
+
+	RewriteRule ^become-an-affiliate$  application/become-affiliate.php [L]
+    RewriteRule ^affiliate-login$  application/affiliate-login.php [L]
+
+	RewriteRule ^subscribe$  application/register.php [L] 
+	RewriteRule ^subscribe/referral/([a-zA-Z-]+)/([a-zA-Z0-9_-]+)$ application/register.php?ref_type=$1&referral_id=$2 [L]
+
+
+	RewriteRule ^register/([a-zA-Z0-9_-]+)$  application/register.php?seo_url=$1 [L] 
+    
+    RewriteRule ^forgot-pass$  application/forgot-pass.php
+
+    RewriteRule ^create-password/(.*)$     application/create-password.php?user_id=$1 [L]
+	
+	RewriteRule ^faq$  application/faq.php [L] 
+	
+	RewriteRule ^notify$  application/notify.php [L]
+    RewriteRule ^paypal-payment$  application/paypal-payment.php [L]
+	
+	RewriteRule ^thank-you$  application/thank-you.php [L] 
+ 
+    RewriteRule ^regret$  application/regret.php [L] 
+	
+	RewriteRule ^contact-us$  application/contact-us.php [L]
+
+	RewriteRule ^blog$  application/blog.php [L]
+
+	RewriteRule ^blog/$  application/blog.php [L]
+
+	RewriteRule ^blogs/([0-9]+)-([a-zA-Z0-9_-]+)$  application/blog.php?cat_id=$1&name=$2 [L]
+
+	RewriteRule ^blogs/([0-9]+)-([a-zA-Z0-9_-]+)/$  application/blog.php?cat_id=$1&name=$2 [L]
+    
+    RewriteRule ^blog/([0-9]+)-([a-zA-Z0-9_-]+)$  application/blog-details.php?id=$1&name=$2 [L]
+
+	RewriteRule ^blog/([0-9]+)-([a-zA-Z0-9_-]+)/$  application/blog-details.php?id=$1&name=$2 [L]
+
+	RewriteRule ^subscribe1$  application/register1.php [L]
+  
+    RewriteRule ^change-password$  application/change-password.php
+    RewriteRule ^edit-profile$  application/edit-profile.php
+	RewriteRule ^subscription-profile$  application/subscription-profile.php
+    
+    RewriteRule ^tutor-register$               application/tutor-register.php
+    
+    RewriteRule ^tutor-reg-success$            application/tutor-reg-success.php
+
+	RewriteRule ^terms-conditions$            application/terms-conditions.php
+
+	RewriteRule ^register-free$ 	application/register-free.php?account=free [L]
+    
+	RewriteRule ^api-check$               application/api-check.php
+
+	RewriteRule ^testingagdumbagdumtunituna$               application/testing.php
+	
+	
+	
+</IfModule>

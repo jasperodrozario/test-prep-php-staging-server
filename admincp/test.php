@@ -1,0 +1,1 @@
+<?php include("common/SimpleXLSX.php");            $xlsx = SimpleXLSX::parse("../uploads/sample_outbound.xlsx");            $list="";           /* $file = $_FILES["file"]["tmp_name"];			$file_open = fopen($file,"r");			*/			$header_values = $rows = [];			foreach ( $xlsx->rows() as $r ) 			{				echo  $r[0] . "<br>";			}			 ?>
