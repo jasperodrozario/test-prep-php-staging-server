@@ -116,6 +116,41 @@ if ($_POST['action']) {
 
             break;
 
+        case "get-sub-course-options":
+            // Unauthenticated: apps POST their asvab_course course_id to list active sub-courses/variants.
+            $list = array();
+            $parent_course_id = isset($_POST['course_id']) ? (int)$_POST['course_id'] : 0;
+
+            if ($parent_course_id <= 0) {
+                $response['error'] = "Invalid course_id";
+                $response['list'] = $list;
+                break;
+            }
+
+            $parent_exists = getTotalRow("asvab_course", array("course_id" => $parent_course_id));
+
+            if ($parent_exists) {
+                $variants = getQuery(
+                    "asvab_course_variants",
+                    "*",
+                    array("parent_asvab_course_id" => $parent_course_id, "is_active" => 1),
+                    "ord"
+                );
+                if ($variants) {
+                    foreach ($variants as $v) {
+                        $list[] = array(
+                            "main_course_id" => (int)$v['main_course_id'],
+                            "label" => $v['label']
+                        );
+                    }
+                }
+            } else {
+                $response['error'] = "Course not found";
+            }
+
+            $response['list'] = $list;
+            break;
+
         case "social-register":
 
             $provider = $_POST['provider']; // 'google' or 'apple'
