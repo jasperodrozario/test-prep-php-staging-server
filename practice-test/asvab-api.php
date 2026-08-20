@@ -42,6 +42,219 @@ $configs = array_merge($configs, $setting);
 
 $response = array();
 
+/**
+ * Normalize client/API is_variant (default 0 = normal asvab course).
+ */
+if (!function_exists('parseIsVariant')) {
+    function parseIsVariant($value)
+    {
+        if ($value === true || $value === 1 || $value === '1') {
+            return 1;
+        }
+        $normalized = strtolower(trim((string)$value));
+        if ($normalized === 'true' || $normalized === 'yes') {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+/**
+ * Map UI / asvab_course_id -> portal main_course_id.
+ *
+ * $is_variant defaults to 0 (normal asvab / UI id). Callers that omit it
+ * never consult asvab_course_variants.main_course_id.
+ *
+ * is_variant = 1: $course_id must be a verified grade main in
+ *   asvab_course_variants. Return that main, or 0 if not a variant grade.
+ * is_variant = 0: lookup course_id_mapping.asvab_course_id only.
+ *
+ * $strict is kept for callers; mapping miss is always 0.
+ */
+if (!function_exists('mapAsvabCourseIdToMain')) {
+    function mapAsvabCourseIdToMain($course_id, $strict = false, $is_variant = 0)
+    {
+        $course_id = (int)$course_id;
+        $is_variant = parseIsVariant($is_variant);
+        if ($course_id <= 0) {
+            return 0;
+        }
+
+        if ($is_variant) {
+            $variant_main = (int)getFldValueById(
+                "asvab_course_variants",
+                "main_course_id",
+                ["main_course_id" => $course_id, "is_active" => 1]
+            );
+            return $variant_main > 0 ? $variant_main : 0;
+        }
+
+        $main = (int)getFldValueById(
+            "course_id_mapping",
+            "main_course_id",
+            ["asvab_course_id" => $course_id]
+        );
+        if ($main > 0) {
+            return $main;
+        }
+
+        return 0;
+    }
+}
+
+/**
+ * Map portal main_course_id -> UI / asvab_course_id.
+ *
+ * $is_variant defaults to 0.
+ * is_variant = 1: verified grade main -> parent_asvab_course_id
+ * is_variant = 0: course_id_mapping.main_course_id -> asvab_course_id
+ */
+if (!function_exists('mapMainCourseIdToAsvab')) {
+    function mapMainCourseIdToAsvab($course_id, $is_variant = 0)
+    {
+        $course_id = (int)$course_id;
+        $is_variant = parseIsVariant($is_variant);
+        if ($course_id <= 0) {
+            return 0;
+        }
+
+        if ($is_variant) {
+            $variant_parent = (int)getFldValueById(
+                "asvab_course_variants",
+                "parent_asvab_course_id",
+                ["main_course_id" => $course_id, "is_active" => 1]
+            );
+            return $variant_parent > 0 ? $variant_parent : 0;
+        }
+
+        $asvab = (int)getFldValueById(
+            "course_id_mapping",
+            "asvab_course_id",
+            ["main_course_id" => $course_id]
+        );
+        if ($asvab > 0) {
+            return $asvab;
+        }
+
+        return 0;
+    }
+}
+
+/**
+ * Resolve registration course_id from POST, else asvab_tutor_package.course_id.
+ * Never uses asvab_tutor_package_sessions.course_id (ambiguous id space).
+ * Session row may supply package_id only.
+ *
+ * is_variant applies only to a posted course_id (grade main). Package
+ * fallback is always asvab space (is_variant = 0).
+ */
+if (!function_exists('resolveRegistrationCourseId')) {
+    function resolveRegistrationCourseId($posted_course_id, $session_id, $package_id, $is_variant = 0)
+    {
+        $source = "posted";
+        $raw_course_id = (int)$posted_course_id;
+        $session_id = (int)$session_id;
+        $package_id = (int)$package_id;
+        $is_variant = parseIsVariant($is_variant);
+
+        if ($is_variant && $raw_course_id <= 0) {
+            return [
+                "course_id" => 0,
+                "raw"       => 0,
+                "source"    => "posted",
+            ];
+        }
+
+        if ($raw_course_id <= 0 && $package_id <= 0 && $session_id > 0) {
+            $session_row = getDataByWhere(
+                "asvab_tutor_package_sessions",
+                "package_id",
+                ["session_id" => $session_id],
+                0
+            );
+            if (is_array($session_row) && isset($session_row[0]) && is_array($session_row[0])) {
+                $session_row = $session_row[0];
+            }
+            $package_id = (int)($session_row["package_id"] ?? 0);
+        }
+
+        $map_as_variant = $is_variant;
+        if ($raw_course_id <= 0 && $package_id > 0) {
+            $package_row = getDataByWhere(
+                "asvab_tutor_package",
+                "course_id",
+                ["package_id" => $package_id],
+                0
+            );
+            if (is_array($package_row) && isset($package_row[0]) && is_array($package_row[0])) {
+                $package_row = $package_row[0];
+            }
+            $from_package = (int)($package_row["course_id"] ?? 0);
+            if ($from_package > 0) {
+                $raw_course_id = $from_package;
+                $source = "package";
+                $map_as_variant = 0;
+            }
+        }
+
+        return [
+            "course_id" => (int)mapAsvabCourseIdToMain($raw_course_id, true, $map_as_variant),
+            "raw"       => (int)$raw_course_id,
+            "source"    => $source,
+        ];
+    }
+}
+
+/**
+ * Active grade variants for a parent asvab_course.course_id.
+ * Returns [{ main_course_id, course_name }, ...] (empty if none).
+ */
+if (!function_exists('getAsvabCourseVariants')) {
+    function getAsvabCourseVariants($parent_asvab_course_id)
+    {
+        $parent_asvab_course_id = (int)$parent_asvab_course_id;
+        if ($parent_asvab_course_id <= 0) {
+            return [];
+        }
+
+        // Fetch variants (getQuery returns mysqli_result, not an array)
+        $result = getQuery(
+            "asvab_course_variants",
+            "*",
+            [
+                "parent_asvab_course_id" => $parent_asvab_course_id,
+                "is_active" => 1,
+            ],
+            "ord"
+        );
+
+        if (!$result || !($result instanceof mysqli_result) || mysqli_num_rows($result) === 0) {
+            return [];
+        }
+
+        $variants = [];
+        while ($row = mysqli_fetch_assoc($result)) {
+            $main_id = (int)($row["main_course_id"] ?? 0);
+            if ($main_id <= 0) {
+                continue;
+            }
+            $course_name = (string)getFldValueById(
+                "course",
+                "course_name",
+                ["course_id" => $main_id]
+            );
+            $variants[] = [
+                "main_course_id" => $main_id,
+                "course_name" => $course_name !== ""
+                    ? $course_name
+                    : ("Course " . $main_id),
+            ];
+        }
+
+        return $variants;
+    }
+}
+
 if ($_POST['action']) {
 
     switch ($_POST['action']) {
@@ -110,6 +323,34 @@ if ($_POST['action']) {
                     "isSuccess" => true,
                 ];
             }
+            break;
+
+        case "validate-course-id":
+            $posted_course_id = isset($_POST['course_id']) ? (int)$_POST['course_id'] : 0;
+            $session_id       = isset($_POST['session_id']) ? (int)$_POST['session_id'] : 0;
+            $package_id       = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 0;
+            $is_variant       = parseIsVariant($_POST['is_variant'] ?? 0);
+
+            $resolved  = resolveRegistrationCourseId($posted_course_id, $session_id, $package_id, $is_variant);
+            $course_id = (int)$resolved["course_id"];
+
+            if ($course_id <= 0) {
+                $response = [
+                    "status"    => 400,
+                    "isSuccess" => false,
+                    "error"     => "course_id",
+                    "message"   => "Invalid course_id.",
+                ];
+                break;
+            }
+
+            $response = [
+                "status"            => 200,
+                "isSuccess"         => true,
+                "course_id"         => $course_id,
+                "course_id_raw"     => (int)$resolved["raw"],
+                "course_id_source"  => $resolved["source"],
+            ];
             break;
 
         case "get-state-list":
@@ -1360,13 +1601,17 @@ if ($_POST['action']) {
                     $course_details = $row['details'];
                     $course_details = preg_replace('/\bwhat[^?]*\?/i', '', $course_details);
 
+                    $variants = getAsvabCourseVariants((int)$row['course_id']);
+
                     $course_list[] = [
                         'course_id' => $row['course_id'],
                         'course_code' => $row['course_code'],
                         'full_form' => $row['full_form'],
                         'name' => $row['name'],
                         'image_src' =>  $img_url,
-                        'details' => $course_details
+                        'details' => $course_details,
+                        'has_variants' => count($variants) > 0 ? 1 : 0,
+                        'variants' => $variants,
                     ];
                 }
 
@@ -1641,24 +1886,25 @@ if ($_POST['action']) {
                             "course_name",
                             array("course_id" => $feedback['course_id'])
                         );
-
-                        $feedback_text = html_entity_decode($feedback['feedback'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                        $feedback_text = str_replace(["\r\n", "\n", "\r"], " ", $feedback_text);
-
                         $user_feedbacks[] = [
                             'feedback_id' => $feedback['feedback_id'],
                             'user_name'   => $feedback['user_name'],
                             'course_name' => $course_name ?: "Unknown Course",
                             'rating'      => $feedback['rating'],
-                            'feedback'    => $feedback_text,
+                            'feedback'    => $feedback['feedback'],
                             'created_at'  => $feedback['created_at']
                         ];
                     }
+
+                    // If variant check and fetch variants
+                    $variants = getAsvabCourseVariants((int)$course_data['course_id']);
 
                     $response = [
                         "status"     => 200,
                         "isSuccess"  => true,
                         "message"    => "Course details fetched successfully.",
+                        "course_id" => $course_data['course_id'],
+                        "course_code" => $course_data['course_code'],
                         "course_name" => $course_data['name'],
                         "full_form" => $course_data['full_form'],
                         "course_header" => $course_data['header'],
@@ -1676,6 +1922,8 @@ if ($_POST['action']) {
                             "checking"  => $checking
                         ],
                         "related_courses" => $related_course_list,
+                        "has_variants" => count($variants) > 0 ? 1 : 0,
+                        "variants" => $variants,
                     ];
                 } else {
                     $response = [
@@ -3185,6 +3433,7 @@ if ($_POST['action']) {
 
             $incoming_course_id = isset($_POST['course_id']) ? (int)$_POST['course_id'] : 0;
             $session_id         = isset($_POST['session_id']) ? (int)$_POST['session_id'] : 0;
+            $is_variant         = parseIsVariant($_POST['is_variant'] ?? 0);
 
             if ($first_name === '' || $last_name === '' || $email === '' || $mobile === '' || $password === '') {
                 $response = [
@@ -3215,36 +3464,16 @@ if ($_POST['action']) {
             }
 
             // -------------------------
-            // 2) Map UI course_id -> internal course_id
+            // 2) Map UI course_id -> internal course_id (course_id_mapping)
             // -------------------------
-            $course_id = 0;
-            if ($incoming_course_id == 49) {
-                $course_id = 24;
-            } else if ($incoming_course_id == 40) {
-                $course_id = 27;
-            } else if ($incoming_course_id == 50) {
-                $course_id = 25;
-            } else if ($incoming_course_id == 51) {
-                $course_id = 26;
-            } else if ($incoming_course_id == 52) {
-                $course_id = 21;
-            } else if ($incoming_course_id == 55) {
-                $course_id = 39;
-            } else if ($incoming_course_id == 56) {
-                $course_id = 20;
-            } else if ($incoming_course_id == 57) {
-                $course_id = 33;
-            } else if ($incoming_course_id == 58) {
-                $course_id = 34;
-            } else if ($incoming_course_id == 59) {
-                $course_id = 30;
-            }
+            $course_id = mapAsvabCourseIdToMain($incoming_course_id, true, $is_variant);
 
             if ($course_id == 0) {
                 $response = [
                     "status"    => 400,
                     "isSuccess" => false,
-                    "message"   => "Invalid course selected."
+                    "error"     => "course_id",
+                    "message"   => "Invalid course_id.",
                 ];
                 break;
             }
@@ -3513,6 +3742,7 @@ if ($_POST['action']) {
             $course_id_in = isset($_POST["course_id"]) ? (int)$_POST["course_id"] : 0;
             $package_id = isset($_POST["package_id"]) ? (int)$_POST["package_id"] : 0;
             $session_id   = isset($_POST["session_id"]) ? (int)$_POST["session_id"] : 0;
+            $is_variant   = parseIsVariant($_POST["is_variant"] ?? 0);
             $first_name = isset($_POST["first_name"]) ? trim($_POST["first_name"]) : "";
             $last_name  = isset($_POST["last_name"])  ? trim($_POST["last_name"])  : "";
             $email      = isset($_POST["email"])      ? trim($_POST["email"])      : "";
@@ -3549,8 +3779,13 @@ if ($_POST['action']) {
             $user_name = $first_name . " " . $last_name;
 
             // Mapping Course ID (for both new and existing user paths)
-            $mapping = [49 => 24, 40 => 27, 50 => 25, 51 => 26, 52 => 21, 55 => 39, 56 => 20, 57 => 33, 58 => 34, 59 => 30];
-            $course_id = isset($mapping[$course_id_in]) ? $mapping[$course_id_in] : $course_id_in;
+            $course_id = mapAsvabCourseIdToMain($course_id_in, true, $is_variant);
+            if ($course_id <= 0) {
+                $response = $respond(400, false, "Invalid course_id.", [
+                    "error" => "course_id",
+                ]);
+                break;
+            }
 
             // ---- 2) CHECK IF USER EXISTS
             $existingUser = null;
@@ -3620,8 +3855,9 @@ if ($_POST['action']) {
                     $sub_id = insertTable("subscription", $sub_data);
                 }
                 $response = $respond(200, true, "Payment processed and sessions added.", [
-                    "user_id" => $user_id,
-                    "is_existing" => true
+                    "user_id"     => $user_id,
+                    "is_existing" => true,
+                    "course_id"   => $course_id,
                 ]);
             } else {
                 // ==========================================
@@ -3749,8 +3985,9 @@ if ($_POST['action']) {
                     @smtpmailer($email, "info@asvab-tutoring.com", "ASVAB Tutoring", $subject, $styled_body);
                 }
                 $response = $respond(200, true, "Registration and payment successful.", [
-                    "user_id" => $user_id,
-                    "is_existing" => false
+                    "user_id"     => $user_id,
+                    "is_existing" => false,
+                    "course_id"   => $course_id,
                 ]);
             }
             break;
@@ -3763,12 +4000,9 @@ if ($_POST['action']) {
             $plan_variation_id  = isset($_POST['plan_variation_id']) ? trim($_POST['plan_variation_id']) : '';
 
             $posted_course_id   = isset($_POST['course_id']) ? (int)$_POST['course_id'] : 0;
-
-            // ✅ ADDED: session_id from checkout flow
             $posted_session_id  = isset($_POST['session_id']) ? (int)$_POST['session_id'] : 0;
-
-            // ✅ ADDED: package_id from checkout flow
             $posted_package_id  = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 0;
+            $is_variant         = parseIsVariant($_POST['is_variant'] ?? 0);
 
             $email    = isset($_POST['email']) ? trim($_POST['email']) : '';
             $password = isset($_POST['password']) ? trim($_POST['password']) : '';
@@ -3795,7 +4029,6 @@ if ($_POST['action']) {
                 break;
             }
 
-            // ✅ ADDED: require package_id
             if ($posted_package_id <= 0) {
                 $response = [
                     "status"    => 400,
@@ -3805,12 +4038,24 @@ if ($_POST['action']) {
                 break;
             }
 
-            // ✅ ADDED: require session_id
             if ($posted_session_id <= 0) {
                 $response = [
                     "status"    => 400,
                     "isSuccess" => false,
                     "message"   => "Missing session_id."
+                ];
+                break;
+            }
+
+            $resolved_course = resolveRegistrationCourseId($posted_course_id, $posted_session_id, $posted_package_id, $is_variant);
+            $course_id = (int)$resolved_course["course_id"];
+
+            if ($course_id <= 0) {
+                $response = [
+                    "status"    => 400,
+                    "isSuccess" => false,
+                    "error"     => "course_id",
+                    "message"   => "Invalid course_id.",
                 ];
                 break;
             }
@@ -3851,31 +4096,6 @@ if ($_POST['action']) {
                 break;
             }
 
-            // 6) Map course IDs (your existing mapping)
-            $course_id = $posted_course_id;
-            if ($posted_course_id == 49) {
-                $course_id = 24;
-            } else if ($posted_course_id == 40) {
-                $course_id = 27;
-            } else if ($posted_course_id == 50) {
-                $course_id = 25;
-            } else if ($posted_course_id == 51) {
-                $course_id = 26;
-            } else if ($posted_course_id == 52) {
-                $course_id = 21;
-            } else if ($posted_course_id == 55) {
-                $course_id = 39;
-            } else if ($posted_course_id == 56) {
-                $course_id = 20;
-            } else if ($posted_course_id == 57) {
-                $course_id = 33;
-            } else if ($posted_course_id == 58) {
-                $course_id = 34;
-            } else if ($posted_course_id == 59) {
-                $course_id = 30;
-            }
-
-            // ✅ UPDATED: use posted package_id (no hard-coded 62)
             $package_id = $posted_package_id;
 
             // 8) Create User (PENDING access)
@@ -3962,28 +4182,37 @@ if ($_POST['action']) {
                 "isSuccess"       => true,
                 "message"         => "User created. Access will activate after invoice payment.",
                 "user_id"         => $user_id,
-                "subscription_id" => $subscription_id
+                "subscription_id" => $subscription_id,
+                "course_id"       => $course_id,
+                "course_id_source"=> $resolved_course["source"],
             ];
 
             break;
 
         case "web-user-registration-subscription":
-            // 1) Inputs
+            // Existing portal user re-subscribes (e.g. subscribe-again without stored square_customer_id).
+            // Records PENDING metadata only — invoice-payment-made activates access.
+
             $square_subscription_id = isset($_POST['square_subscription_id']) ? trim($_POST['square_subscription_id']) : '';
             $square_customer_id     = isset($_POST['square_customer_id']) ? trim($_POST['square_customer_id']) : '';
             $plan_variation_id      = isset($_POST['plan_variation_id']) ? trim($_POST['plan_variation_id']) : '';
             $subscription_date      = isset($_POST['subscription_date']) ? trim($_POST['subscription_date']) : '';
-            $status                 = isset($_POST['status']) ? trim($_POST['status']) : 'PENDING';
-            $raw_amount             = isset($_POST['amount']) ? (float)$_POST['amount'] : 0;
-            $decimal_amount         = number_format(($raw_amount / 100), 2, '.', '');
-            $currency               = isset($_POST['currency']) ? trim($_POST['currency']) : 'USD';
-            $session_id             = isset($_POST['session_id']) ? trim($_POST['session_id']) : '';
-            $course_id              = isset($_POST['course_id']) ? trim($_POST['course_id']) : '';
-            $package_id             = isset($_POST['package_id']) ? trim($_POST['package_id']) : '';
-            $user_id                = isset($_POST['user_id']) ? trim($_POST['user_id']) : '';
-            $auth_token             = isset($_POST['auth_token']) ? trim($_POST['auth_token']) : '';
+            $status                 = strtoupper(trim($_POST['status'] ?? 'PENDING'));
 
-            // 2) Validate required fields
+            $posted_course_id       = isset($_POST['course_id']) ? (int)$_POST['course_id'] : 0;
+            $session_id             = isset($_POST['session_id']) ? (int)$_POST['session_id'] : 0;
+            $package_id             = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 0;
+            $user_id                = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
+            $is_variant             = parseIsVariant($_POST['is_variant'] ?? 0);
+
+            // Next.js may send amount (preferred) or raw_amount (legacy) in cents
+            $raw_amount = isset($_POST['amount']) ? (float)$_POST['amount'] : 0;
+            if ($raw_amount <= 0 && isset($_POST['raw_amount'])) {
+                $raw_amount = (float)$_POST['raw_amount'];
+            }
+            $decimal_amount = number_format(($raw_amount / 100), 2, '.', '');
+            $currency       = isset($_POST['currency']) ? trim($_POST['currency']) : 'USD';
+
             if ($square_subscription_id === '' || $plan_variation_id === '' || $square_customer_id === '') {
                 $response = [
                     "status"    => 400,
@@ -3993,27 +4222,15 @@ if ($_POST['action']) {
                 break;
             }
 
-            // require session_id
-            if ($session_id <= 0) {
+            if ($user_id <= 0) {
                 $response = [
                     "status"    => 400,
                     "isSuccess" => false,
-                    "message"   => "Missing session_id."
+                    "message"   => "Missing user_id."
                 ];
                 break;
             }
 
-            // require course_id
-            if ($course_id <= 0) {
-                $response = [
-                    "status"    => 400,
-                    "isSuccess" => false,
-                    "message"   => "Missing course_id."
-                ];
-                break;
-            }
-
-            // require package_id
             if ($package_id <= 0) {
                 $response = [
                     "status"    => 400,
@@ -4023,30 +4240,38 @@ if ($_POST['action']) {
                 break;
             }
 
-            // ?) TODO: Check for auth token
-            // if ($auth_token === '') {
-            //     $response = [
-            //         "status"    => 400,
-            //         "isSuccess" => false,
-            //         "message"   => "Missing auth_token."
-            //     ];
-            //     break;
-            // }
+            if ($session_id <= 0) {
+                $response = [
+                    "status"    => 400,
+                    "isSuccess" => false,
+                    "message"   => "Missing session_id."
+                ];
+                break;
+            }
 
-            // // verify auth token
-            // $token_exists = (int)getTotalRow("user", [
-            //     "auth_token" => $auth_token
-            // ]);
-            // if ($token_exists) {
-            //     $response = [
-            //         "status"    => 400,
-            //         "isSuccess" => false,
-            //         "message"   => "Auth token already used."
-            //     ];
-            //     break;
-            // }
+            $resolved_course = resolveRegistrationCourseId($posted_course_id, $session_id, $package_id, $is_variant);
+            $course_id = (int)$resolved_course["course_id"];
 
-            // 3) Prevent duplicate subscription insert
+            if ($course_id <= 0) {
+                $response = [
+                    "status"    => 400,
+                    "isSuccess" => false,
+                    "error"     => "course_id",
+                    "message"   => "Invalid course_id.",
+                ];
+                break;
+            }
+
+            // Never trust client/Square status for access — store PENDING until invoice paid
+            $status = "PENDING";
+
+            if ($subscription_date === '') {
+                $subscription_date = date("Y-m-d");
+            }
+
+            $now_mysql = date("Y-m-d H:i:s");
+
+            // Idempotent: already recorded
             $sub_exists = (int)getTotalRow("square_subscriptions", [
                 "subscription_id" => $square_subscription_id
             ]);
@@ -4058,50 +4283,15 @@ if ($_POST['action']) {
                 $response = [
                     "status"          => 200,
                     "isSuccess"       => true,
-                    "message"         => "Subscription already recorded.",
-                    "user_id"         => (int)$existing["user_id"],
+                    "message"         => "Subscription already recorded. Waiting for invoice payment.",
+                    "user_id"         => (int)($existing["user_id"] ?? $user_id),
                     "subscription_id" => $square_subscription_id
                 ];
                 break;
             }
 
-            // 4) Map course IDs (your existing mapping)
-            $course_id = $posted_course_id;
-            if ($posted_course_id == 49) {
-                $course_id = 24;
-            } else if ($posted_course_id == 40) {
-                $course_id = 27;
-            } else if ($posted_course_id == 50) {
-                $course_id = 25;
-            } else if ($posted_course_id == 51) {
-                $course_id = 26;
-            } else if ($posted_course_id == 52) {
-                $course_id = 21;
-            } else if ($posted_course_id == 55) {
-                $course_id = 39;
-            } else if ($posted_course_id == 56) {
-                $course_id = 20;
-            } else if ($posted_course_id == 57) {
-                $course_id = 33;
-            } else if ($posted_course_id == 58) {
-                $course_id = 34;
-            } else if ($posted_course_id == 59) {
-                $course_id = 30;
-            }
-
-            // Need to see if this is required
-            // ?) Create login record
-            // insertTable("login", [
-            //     "user_id"    => $user_id,
-            //     "last_login" => $formatted_date_time
-            // ]);
-
-            // 5) Update subscription row for web user
-            // amount/payment_mode/currency will be updated by webhook when invoice is PAID
             $existing_subscription = getDataByWhere("subscription", "*", ["user_id" => $user_id]);
-
-            // Single row check just in case the query returns multiple rows
-            if (!empty($existing_subscription) && isset($existing_subscription[0]) && is_array($existing_subscription[0])) {
+            if (is_array($existing_subscription) && isset($existing_subscription[0]) && is_array($existing_subscription[0])) {
                 $existing_subscription = $existing_subscription[0];
             }
 
@@ -4113,15 +4303,14 @@ if ($_POST['action']) {
                 "amount"            => "0.00",
                 "payment_mode"      => "",
                 "currency"          => $currency,
-                "txn_id"            => $square_subscription_id
+                "txn_id"            => $square_subscription_id,
+                "customer_id"       => $square_customer_id,
             ];
 
-            if (!empty($existing_subscription)) {
-                // Update existing subscription row
+            if (!empty($existing_subscription) && !empty($existing_subscription["id"])) {
                 updateTable("subscription", $sub_data, ["user_id" => $user_id]);
-                $sub_id = $existing_subscription['id']; // Assign existing id if needed
+                $sub_id = $existing_subscription["id"];
             } else {
-                // Insert new subscription row
                 $sub_data["user_id"] = $user_id;
                 $sub_id = insertTable("subscription", $sub_data);
             }
@@ -4135,7 +4324,6 @@ if ($_POST['action']) {
                 break;
             }
 
-            // 6) Save Square subscription metadata
             $okSub = insertTable("square_subscriptions", [
                 "subscription_id"    => $square_subscription_id,
                 "square_customer_id" => $square_customer_id,
@@ -4146,8 +4334,8 @@ if ($_POST['action']) {
                 "start_date"         => $subscription_date,
                 "cancel_date"        => null,
                 "user_id"            => $user_id,
-                "created_at"         => $subscription_date,
-                "updated_at"         => $subscription_date
+                "created_at"         => $now_mysql,
+                "updated_at"         => $now_mysql
             ]);
 
             if (!$okSub) {
@@ -4160,11 +4348,14 @@ if ($_POST['action']) {
             }
 
             $response = [
-                "status"          => 200,
-                "isSuccess"       => true,
-                "message"         => "User created. Access will activate after invoice payment.",
-                "user_id"         => $user_id,
-                "subscription_id" => $subscription_id
+                "status"            => 200,
+                "isSuccess"         => true,
+                "message"           => "Subscription recorded (pending payment). Access activates after paid invoice.",
+                "user_id"           => $user_id,
+                "subscription_id"   => $square_subscription_id,
+                "course_id"         => $course_id,
+                "course_id_source"  => $resolved_course["source"],
+                "activation_status" => "unchanged"
             ];
             break;
 
@@ -5005,10 +5196,19 @@ if ($_POST['action']) {
 
             $course_id  = trim((string)($sub["course_id"] ?? ""));
 
-            if ($course_id === "27") {
-                $course_id = "40";
+            // Portal main id -> UI/asvab id when packages are keyed by asvab_course_id.
+            // Stored subscription ids are MAIN: detect variant grades server-side.
+            $stored_main = (int)$course_id;
+            $is_variant_grade = (int)getFldValueById(
+                "asvab_course_variants",
+                "main_course_id",
+                ["main_course_id" => $stored_main, "is_active" => 1]
+            ) > 0 ? 1 : 0;
+            $mapped_asvab = mapMainCourseIdToAsvab($stored_main, $is_variant_grade);
+            if ($mapped_asvab <= 0) {
+                $respond(400, false, "Invalid course_id.", ["error" => "course_id"]);
             }
-
+            $course_id = (string)$mapped_asvab;
 
             if (!is_array($sub) || empty($course_id)) {
                 $respond(400, false, "Course not found for this user subscription.");
@@ -5026,9 +5226,9 @@ if ($_POST['action']) {
                 $web_user = false;
             }
 
-            // 4) Course info
+            // 4) Course info (MAIN id space: stored grade or mapped main)
             $course_name = "";
-            $c = getDataByWhere("course", "*", ["course_id" => $course_id], 0);
+            $c = getDataByWhere("course", "*", ["course_id" => $stored_main], 0);
             if (is_array($c)) {
                 $course_name = (string)($c["course_name"] ?? "");
             }
@@ -5078,8 +5278,10 @@ if ($_POST['action']) {
                     "web_user"   => $web_user,
                 ],
                 "course" => [
-                    "course_id"   => (string)$course_id,
-                    "course_name" => (string)$course_name,
+                    "course_id"      => (string)$course_id,
+                    "course_name"    => (string)$course_name,
+                    "is_variant"     => (int)$is_variant_grade,
+                    "main_course_id" => (string)$stored_main,
                 ],
                 "package" => [
                     "package_id" => (int)$package_id
@@ -5332,18 +5534,20 @@ if ($_POST['action']) {
 
         case "user-registration-mobile-payment":
 
-            $course_id = 0;
+            $course_id = mapAsvabCourseIdToMain(
+                isset($_POST['course_id']) ? (int)$_POST['course_id'] : 0,
+                true,
+                parseIsVariant($_POST['is_variant'] ?? 0)
+            );
 
-            if ($_POST['course_id'] == 49) {
-                $course_id = 24;
-            } else if ($_POST['course_id'] == 40) {
-                $course_id = 27;
-            } else if ($_POST['course_id'] == 50) {
-                $course_id = 25;
-            } else if ($_POST['course_id'] == 51) {
-                $course_id = 26;
-            } else if ($_POST['course_id'] == 52) {
-                $course_id = 21;
+            if ($course_id <= 0) {
+                $response = [
+                    "status"    => 400,
+                    "isSuccess" => false,
+                    "error"     => "course_id",
+                    "message"   => "Invalid course_id.",
+                ];
+                break;
             }
 
             $amount = getFldValueById("asvab_tutor_package_sessions", "price", array("session_id" => $_POST['session_id']));
@@ -5424,7 +5628,8 @@ if ($_POST['action']) {
                     "status"     => 200,
                     "isSuccess"  => true,
                     "message"    => "User registered successfully.",
-                    "user_id"    => $user_id
+                    "user_id"    => $user_id,
+                    "course_id"  => $course_id,
                 ];
             } else {
                 $response = [
@@ -5690,15 +5895,12 @@ if ($_POST['action']) {
                         array("course_id" => $courseId)
                     );
 
-                    $feedback_text = html_entity_decode($feedback['feedback'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                    $feedback_text = str_replace(["\r\n", "\n", "\r"], " ", $feedback_text);
-
                     $feedback_list[] = [
                         'feedback_id' => $feedback['feedback_id'],
                         'user_name'   => $feedback['user_name'],
                         'course_name' => $course_name ?: "Unknown Course",
                         'rating'      => $feedback['rating'],
-                        'feedback'    => $feedback_text,
+                        'feedback'    => $feedback['feedback'],
                         'created_at'  => $feedback['created_at']
                     ];
                 }
@@ -5715,6 +5917,41 @@ if ($_POST['action']) {
                     "status"    => 404,
                     "isSuccess" => false,
                     "message"   => "No user feedback found."
+                ];
+            }
+
+            break;
+
+        case "get-state-test-preparation-courses":
+
+            $courses = getQuery("course", "*", array("is_online" => "Y", "[or]" => "(course_name like '%State%')"), "ord");
+
+            $course_list = [];
+
+            foreach ($courses as $course) {
+                $course_list[] = [
+                    'course_id' => $course['course_id'],
+                    'course_name' => $course['course_name'],
+                    "order" => $course['ord'],
+                    "is_online" => $course['is_online'],
+                    "subscribe" => $course['subscribe'],
+                    "app" => $course['app'],
+                    "tutoring" => $course['tutoring'],
+                ];
+            }
+
+            if (!empty($course_list)) {
+                $response = [
+                    "status"     => 200,
+                    "isSuccess"  => true,
+                    "message"    => "State test preparation courses fetched successfully.",
+                    "data"       => $course_list
+                ];
+            } else {
+                $response = [
+                    "status"     => 404,
+                    "isSuccess"  => false,
+                    "message"    => "No state test preparation courses found."
                 ];
             }
 
