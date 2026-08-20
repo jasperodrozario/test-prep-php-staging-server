@@ -105,6 +105,7 @@ function ml_sync_filename_references($oldFilename, $newFilename)
         ['story',              ['story']],
         ['asvab_course',       ['details', 'curriculum', 'thumb_pic', 'video']],
         ['course_help_videos', ['thumbnail']],
+        ['employee_task',      ['description', 'dev_notes']],
         ['user',               ['pic', 'photo', 'attachment']],
         ['tutor',              ['photo']],
     ];
@@ -169,6 +170,7 @@ function ml_delete_filename_references($filename)
         ['course_help_videos', ['thumbnail']],
         ['user',               ['pic', 'photo', 'attachment']],
         ['tutor',              ['photo']],
+        ['employee_task',      ['description', 'dev_notes']],
     ];
 
     $esc = ml_esc($filename);
@@ -512,7 +514,8 @@ function ml_build_usage_index()
 
     // Any token that looks like "something.ext" gets pulled out of the text
     $extPattern = 'jpg|jpeg|png|gif|webp|svg|bmp|mp4|mov|avi|webm|mkv|m4v|pdf|docx?|xlsx?|csv|txt|json|log|md';
-    $filenameRegex = '/[A-Za-z0-9_\-\.\s]+\.(?:' . $extPattern . ')/i';
+    // $filenameRegex = '/[A-Za-z0-9_\-\.\s]+\.(?:' . $extPattern . ')/i';
+    $filenameRegex = '/[A-Za-z0-9_\-\.\s()\[\]{}@#$%&+=,;!~]+\.(?:' . $extPattern . ')/i';
 
     $tables = [
         ['question', ['question', 'option_a', 'option_b', 'option_c', 'option_d', 'option_e', 'explanation'], 'question',           'Question',           'Question #',  'qid',        'Used in question/ question options'],
@@ -522,6 +525,7 @@ function ml_build_usage_index()
         ['course_help_videos', ['thumbnail'],                                                          'course_help_videos', 'Course Help Video',  'Course #',    'course_id',  'Used as video thumbnail'],
         ['user',               ['pic', 'photo', 'attachment'],                                          'user',               'User',               '',            'email',      'Used in user profile'],
         ['tutor',              ['photo'],                                                              'tutor',              'Tutor',              '',            'name',       'Used in tutor profile'],
+        ['employee_task',      ['description', 'dev_notes'],                                             'employee_task',      'Employee Task',      '',            'id',    'Used in task description or dev notes'],
     ];
 
     foreach ($tables as [$table, $cols, $tableKey, $source, $titlePrefix, $idField, $sub]) {
