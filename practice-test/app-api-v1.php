@@ -1023,7 +1023,7 @@ if ($_POST['action']) {
                             $response['practice_test_total'] = 15;
                         }
                     }
-                    
+
                     $response['homework_total'] = getTotalRow("lesson_questions", array("cat_id" => $lesson['cat_id'], "lesson_id" => $lesson['lesson_id'], "course_id" => $test_id, "HW" => 1));
 
                     //                    ***************** Lesson Youtube Video *****************
@@ -1087,76 +1087,117 @@ if ($_POST['action']) {
                 }
 
                 if (!$alert) {
-                    $has_order_no = getTotalRow("lesson_questions", array("lesson_id" => $_POST['lesson_id'], "cat_id" => $_POST['cat_id'], "HW" => 1, "course_id" => $test_id, "order_no>" => 0));
+                    try {
+                        $has_order_no = getTotalRow("lesson_questions", array("lesson_id" => $_POST['lesson_id'], "cat_id" => $_POST['cat_id'], "HW" => 1, "course_id" => $test_id, "order_no>" => 0));
 
-                    //                    $response['check_order_no'] = $has_order_no;
+                        //                    $response['check_order_no'] = $has_order_no;
 
-                    if ($has_order_no) {
-                        $order_by = 'l.order_no';
-                    } else {
-                        $order_by = "q.qid";
-                    }
+                        if ($has_order_no) {
+                            $order_by = 'l.order_no';
+                        } else {
+                            $order_by = "q.qid";
+                        }
 
-                    $response['homework_total'] = getTotalRow("lesson_questions", array("cat_id" => $lesson['cat_id'], "lesson_id" => $lesson['lesson_id'], "course_id" => $test_id, "HW" => 1));
+                        $response['homework_total'] = getTotalRow("lesson_questions", array("cat_id" => $lesson['cat_id'], "lesson_id" => $lesson['lesson_id'], "course_id" => $test_id, "HW" => 1));
 
-                    if (in_array($_POST['cat_id'], $data['story_question'])) {
-                        $story_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.story_id", array("l.cat_id" => (int)$_POST['cat_id'], "l.lesson_id" => (int)$_POST['lesson_id'], "l.HW" => 1), array("q.qid" => "l.qid"), $order_by, '', '', 'q.story_id');
+                        if (in_array($_POST['cat_id'], $data['story_question'])) {
+                            $story_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.story_id", array("l.cat_id" => (int)$_POST['cat_id'], "l.lesson_id" => (int)$_POST['lesson_id'], "l.HW" => 1), array("q.qid" => "l.qid"), $order_by, '', '', 'q.story_id');
+                            if (!is_array($story_list)) {
+                                $story_list = [];
+                            }
 
-                        $homework_list = [];
-                        $serial_no = 0;
-                        $qlist = [];
-                        foreach ($story_list as $a) {
-                            //					    	$story=getFldValueById("story","story",array("story_id"=>$a['story_id']));
+                            $homework_list = [];
+                            $serial_no = 0;
+                            $qlist = [];
+                            foreach ($story_list as $a) {
+                                //					    	$story=getFldValueById("story","story",array("story_id"=>$a['story_id']));
 
-                            $homework_list = getQueryByJoin(array("question as q", "lesson_questions as l", "story as s"), "q.*,s.*,l.*", array("l.lesson_id" => $_POST['lesson_id'], "l.cat_id" => $_POST['cat_id'], "q.story_id" => $a['story_id']), array("q.qid" => "l.qid", "q.story_id" => "s.story_id"), $order_by, '', '', "q.qid");
+                                $homework_list = getQueryByJoin(array("question as q", "lesson_questions as l", "story as s"), "q.*,s.*,l.*", array("l.lesson_id" => $_POST['lesson_id'], "l.cat_id" => $_POST['cat_id'], "q.story_id" => $a['story_id']), array("q.qid" => "l.qid", "q.story_id" => "s.story_id"), $order_by, '', '', "q.qid");
+                                if (!is_array($homework_list)) {
+                                    $homework_list = [];
+                                }
 
-                            foreach ($homework_list as $d) {
-                                $serial_no++;
+                                foreach ($homework_list as $d) {
+                                    $serial_no++;
+                                    $answer_key = isset($d['answer']) ? $d['answer'] : null;
+                                    $correct_answer = (isset($data['alphabet']) && isset($data['alphabet'][$answer_key]))
+                                        ? $data['alphabet'][$answer_key]
+                                        : '';
 
-                                if ($test_id == 24 || $test_id == 25) {
-                                    $story_content = html_entity_decode(
-                                        html_entity_decode(
-                                            html_entity_decode($d['story'])
-                                        )
-                                    );
+                                    if ($test_id == 24 || $test_id == 25) {
+                                        $story_content = html_entity_decode(
+                                            html_entity_decode(
+                                                html_entity_decode((string)($d['story'] ?? ''))
+                                            )
+                                        );
 
-                                    $story_content = str_replace(
-                                        [
-                                            '"/uploads/',
-                                            '"/practice-test/uploads/'
-                                        ],
-                                        [
-                                            '"https://staging-test-prep.asvab-tutoring.com/practice-test/uploads/',
-                                            '"https://staging-test-prep.asvab-tutoring.com/practice-test/uploads/'
-                                        ],
-                                        $story_content
-                                    );
+                                        $story_content = str_replace(
+                                            [
+                                                '"/uploads/',
+                                                '"/practice-test/uploads/'
+                                            ],
+                                            [
+                                                '"https://staging-test-prep.asvab-tutoring.com/practice-test/uploads/',
+                                                '"https://staging-test-prep.asvab-tutoring.com/practice-test/uploads/'
+                                            ],
+                                            $story_content
+                                        );
 
-                                    $qlist[] = array("story" => $story_content, "serial_no" => $serial_no, "qid" => $d['qid'], "cat_id" => $d['cat_id'], "lesson_id" => $d['lesson_id'], "question" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['question']))), "question_explanation" => html_entity_decode(html_entity_decode($d['explanation'])), "correct_answer" => $data['alphabet'][$d['answer']], "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))));
-
-                                } else {
-                                    $qlist[] = array("story" => html_entity_decode(html_entity_decode(html_entity_decode($d['story']))), "serial_no" => $serial_no, "qid" => $d['qid'], "cat_id" => $d['cat_id'], "lesson_id" => $d['lesson_id'], "question" => html_entity_decode($d['question']), "question_explanation" => html_entity_decode(html_entity_decode($d['explanation'])), "correct_answer" => $data['alphabet'][$d['answer']], "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))));
+                                        $qlist[] = array("story" => $story_content, "serial_no" => $serial_no, "qid" => $d['qid'], "cat_id" => $d['cat_id'], "lesson_id" => $d['lesson_id'], "question" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['question'] ?? '')))), "question_explanation" => html_entity_decode(html_entity_decode((string)($d['explanation'] ?? ''))), "correct_answer" => $correct_answer, "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_a'] ?? '')))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_b'] ?? '')))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_c'] ?? '')))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_d'] ?? '')))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_e'] ?? '')))));
+                                    } else {
+                                        $qlist[] = array("story" => html_entity_decode(html_entity_decode(html_entity_decode((string)($d['story'] ?? '')))), "serial_no" => $serial_no, "qid" => $d['qid'], "cat_id" => $d['cat_id'], "lesson_id" => $d['lesson_id'], "question" => html_entity_decode((string)($d['question'] ?? '')), "question_explanation" => html_entity_decode(html_entity_decode((string)($d['explanation'] ?? ''))), "correct_answer" => $correct_answer, "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_a'] ?? '')))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_b'] ?? '')))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_c'] ?? '')))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_d'] ?? '')))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_e'] ?? '')))));
+                                    }
                                 }
                             }
+
+                            $response['homework_questions'] = $qlist;
+                        } else {
+                            $homework_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*,l.*", array("l.lesson_id" => $_POST['lesson_id'], "l.cat_id" => $_POST['cat_id'], "l.HW" => 1), array("q.qid" => "l.qid"), $order_by, '', '', "q.qid");
+
+                            if (!is_array($homework_list)) {
+                                $homework_list = [];
+                            }
+
+                            $qlist = [];
+                            $serial_no = 0;
+                            foreach ($homework_list as $d) {
+                                $serial_no++;
+                                $answer_key = isset($d['answer']) ? $d['answer'] : null;
+                                $correct_answer = (isset($data['alphabet']) && isset($data['alphabet'][$answer_key]))
+                                    ? $data['alphabet'][$answer_key]
+                                    : '';
+                                $qlist[] = array(
+                                    "serial_no" => $serial_no,
+                                    "qid" => $d['qid'],
+                                    "cat_id" => $d['cat_id'],
+                                    "lesson_id" => $d['lesson_id'],
+                                    "question" => html_entity_decode(html_entity_decode((string)($d['question'] ?? ''))),
+                                    "question_explanation" => html_entity_decode(html_entity_decode((string)($d['explanation'] ?? ''))),
+                                    "correct_answer" => $correct_answer,
+                                    "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_a'] ?? '')))),
+                                    "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_b'] ?? '')))),
+                                    "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_c'] ?? '')))),
+                                    "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_d'] ?? '')))),
+                                    "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", (string)($d['option_e'] ?? ''))))
+                                );
+                            }
+                            $response['homework_questions'] = $qlist;
                         }
 
-                        $response['homework_questions'] = $qlist;
-                    } else {
-                        $homework_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*,l.*", array("l.lesson_id" => $_POST['lesson_id'], "l.cat_id" => $_POST['cat_id'], "l.HW" => 1), array("q.qid" => "l.qid"), $order_by, '', '', "q.qid");
-
-                        $qlist = [];
-                        $serial_no = 0;
-                        foreach ($homework_list as $d) {
-                            $serial_no++;
-                            $qlist[] = array("serial_no" => $serial_no, "qid" => $d['qid'], "cat_id" => $d['cat_id'], "lesson_id" => $d['lesson_id'], "question" => html_entity_decode(html_entity_decode($d['question'])), "question_explanation" => html_entity_decode(html_entity_decode($d['explanation'])), "correct_answer" => $data['alphabet'][$d['answer']], "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))));
-                        }
-                        $response['homework_questions'] = $qlist;
+                        $response['cat_id'] = $_POST['cat_id'];
+                        $response['lesson_id'] = $_POST['lesson_id'];
+                        $response["status"] = 200;
+                        $response["isSuccess"] = true;
+                    } catch (Throwable $e) {
+                        $response['homework_questions'] = [];
+                        $response['homework_total'] = 0;
+                        $response['cat_id'] = $_POST['cat_id'] ?? null;
+                        $response['lesson_id'] = $_POST['lesson_id'] ?? null;
+                        $response['status'] = 500;
+                        $response['isSuccess'] = false;
+                        $response['error'] = 'Failed to load homework questions';
+                        $response['message'] = $e->getMessage();
                     }
-
-                    $response['cat_id'] = $_POST['cat_id'];
-                    $response['lesson_id'] = $_POST['lesson_id'];
-                    $response["status"] = 200;
-                    $response["isSuccess"] = true;
                 } else {
                     $response['message'] = "Its paid lesson.Upgrade your membership to get all paid lessons active by paying  $" . $configs['subscription_fees'] . " USD for " . $configs['validity'] . " days.";
                     $response["status"] = 201;
@@ -2884,7 +2925,6 @@ if ($_POST['action']) {
                     $response['last_name'] = $user['last_name'];
                     $response['email'] = $user['email'];
                     $response['mobile'] = $user['mobile'];
-
                 } else {
                     $response['error'] = "Token does not exist!";
                 }
@@ -3667,6 +3707,63 @@ if ($_POST['action']) {
 
             break;
 
+        case "tutoring-invitation-email":
+
+            $mail = getDataByWhere("mailsetup", "*", array("mail_type" => "tutoring_invitation"));
+
+            if (!empty($mail) && isset($mail['template'], $mail['subject'])) {
+
+                $body = $mail['template'];
+
+                // Replace placeholders
+                $body = str_replace("{name}", "Sharmin Testing", $body);
+                $body = str_replace("{course_name}", "OAR", $body);
+
+                // TRIPLE DECODE
+                $body = html_entity_decode($body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $body = html_entity_decode($body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $body = html_entity_decode($body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+                // CLEAN UP - ONLY REMOVE TRULY EMPTY PARAGRAPHS
+                $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
+
+                // ASSETS
+                $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+
+                // LOAD STYLED EMAIL TEMPLATE
+                $inner_body = $body;
+                $footer_reason = "You received this because your password was successfully reset.";
+                ob_start();
+                include __DIR__ . '/email-layouts/standard-wrapper.php';
+                $styled_body = ob_get_clean();
+
+                // Apply inline styles
+                $styled_body = str_replace('<p>', '<p style="margin: 0 0 12px 0; line-height: 1.6; color: #333333;">', $styled_body);
+                $styled_body = str_replace('<strong>', '<strong style="color: #004a99; font-weight: 600;">', $styled_body);
+                $styled_body = str_replace('<a', '<a style="color: #004a99; text-decoration: underline;"', $styled_body);
+                $styled_body = str_replace('<br>', '<br style="display: block;">', $styled_body);
+                $styled_body = str_replace('<br />', '<br style="display: block;">', $styled_body);
+                $styled_body = str_replace('<br/>', '<br style="display: block;">', $styled_body);
+
+                $subject = $mail['subject'];
+                $subject = str_replace("{course_name}", "OAR", $subject);
+
+                $flag = smtpmailer("shroddha97@gmail.com", $setting['support_mail'], ucwords($configs['dotcom']), $subject, $styled_body);
+
+                if ($flag) {
+                    $response["status"] = 200;
+                    $response["isSuccess"] = true;
+                    $response["message"] = "Email sent successfully!";
+                } else {
+                    $response["status"] = 201;
+                    $response["isSuccess"] = false;
+                    $response["message"] = "Failed to send email.";
+                }
+            }
+
+            break;
+
         case "submit-app-review":
 
             $exist = getTotalRow("login", array("auth_token" => $_POST['authorizationToken']));
@@ -3774,7 +3871,7 @@ if ($_POST['action']) {
             break;
 
         case "1-on-1-tutor-request":
-            
+
             $exist = getTotalRow("login", array("auth_token" => $_POST['authorizationToken']));
 
             if ($exist > 0) {
@@ -3791,15 +3888,51 @@ if ($_POST['action']) {
                 $course_name = getFldValueById("course", "course_name", array("course_id" => $course_id));
 
                 $response['1-on-1-tutor-request-url'] = "https://www.asvab-tutoring.com/package-details/1-on-1-tutoring/" . strtolower(str_replace(' ', '-', $course_name));
-
             } else {
                 $response['error'] = "Token does not exist!";
             }
 
             break;
 
+        case "get-tutoring-package-details-link":
+            $exist = getTotalRow("login", array("auth_token" => $_POST['authorizationToken']));
+            if ($exist > 0) {
+                $user = getDataByJoin(
+                    array("user as u", "login as l"),
+                    "u.*,l.*",
+                    array("l.auth_token" => $_POST['authorizationToken']),
+                    array("u.user_id" => "l.user_id")
+                );
+
+                $user_id = $user['user_id'];
+                $course_id = getFldValueById("subscription", "course_id", array("user_id" => $user_id));
+                $course_code = getFldValueById("asvab_course", "course_code", array("course_id" => $course_id));
+
+                if ($course_code) {
+                    $link = "https://www.asvab-tutoring.com/package-details/1-on-1-tutoring/" . $course_code;
+                    $response['isSuccess'] = true;
+                    $response['message'] = "Tutoring package details link generated successfully!";
+                    $response['data'] = $link;
+                } else {
+                    $response['isSuccess'] = false;
+                    $response['error'] = "Course code not found for this user! Report this issue to support for a quick fix.";
+                }
+            } else {
+                $response['isSuccess'] = false;
+                $response['error'] = "Token does not exist!";
+            }
+            break;
     }
 
-    echo json_encode($response);
+    $json = json_encode($response, JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($json === false) {
+        $json = json_encode(array(
+            "isSuccess" => false,
+            "status" => 500,
+            "error" => "Failed to encode API response",
+            "json_error" => json_last_error_msg()
+        ));
+    }
+    echo $json;
     die();
 }
