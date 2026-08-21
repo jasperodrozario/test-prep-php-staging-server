@@ -92,6 +92,61 @@ function predictionTestSubmissionLockedResponse(&$response)
     $response['can_take_pred_test'] = 0;
 }
 
+/** True when main course is an active variant of asvab_course parent (default: State Math = 60). */
+function belongsToParentAsvabCourse($main_course_id, $parent_asvab_course_id = 60)
+{
+    $main_course_id = (int)$main_course_id;
+    $parent_asvab_course_id = (int)$parent_asvab_course_id;
+    if ($main_course_id <= 0 || $parent_asvab_course_id <= 0) {
+        return false;
+    }
+
+    $parent = (int)getFldValueById(
+        "asvab_course_variants",
+        "parent_asvab_course_id",
+        array("main_course_id" => $main_course_id, "is_active" => 1)
+    );
+
+    return $parent === $parent_asvab_course_id;
+}
+
+/** Math / arithmetic categories only (excludes ELA even if shortcode is mislabeled). */
+function isMathRelatedCategoryRow($c)
+{
+    $name = strtolower(trim($c['category_name'] ?? ''));
+    $short = strtolower(trim($c['shortcode'] ?? ''));
+    $haystack = $name . ' ' . $short;
+
+    if (strpos($haystack, 'ela') !== false || strpos($haystack, 'english') !== false) {
+        return false;
+    }
+
+    return (
+        strpos($haystack, 'math') !== false
+        || strpos($haystack, 'arith') !== false
+        || strpos($haystack, 'algebra') !== false
+        || strpos($haystack, 'geometry') !== false
+        || strpos($haystack, 'quantitative') !== false
+    );
+}
+
+function isMathRelatedPredTestRow($p)
+{
+    $name = strtolower(trim($p['test_name'] ?? ''));
+
+    if (strpos($name, 'ela') !== false || strpos($name, 'english') !== false) {
+        return false;
+    }
+
+    return (
+        strpos($name, 'math') !== false
+        || strpos($name, 'arith') !== false
+        || strpos($name, 'algebra') !== false
+        || strpos($name, 'geometry') !== false
+        || strpos($name, 'quantitative') !== false
+    );
+}
+
 $option_no = 4;
 
 $setting = getDataByWhere("setting", "*", array("id" => 1));
@@ -856,18 +911,25 @@ if ($_POST['action']) {
                 if ($test_id) {
                     $icon = "uploads/test.png";
                     $can_take_pred_test = getCanTakePredTestFlag($user_id);
+                    $math_only = belongsToParentAsvabCourse($test_id, 60);
 
-                    $cat_list = getQuery("category", "*", array("course_id" => $test_id, "online" => "Y", "[or]"=>"shortcode in ('Math', 'FPT Math')"), "category_order");
+                    $cat_list = getQuery("category", "*", array("course_id" => $test_id, "online" => "Y"), "category_order");
 
                     if ($test_id == 24) {
                         $idx = 0;
                         foreach ($cat_list as $c) {
+                            if ($math_only && !isMathRelatedCategoryRow($c)) {
+                                continue;
+                            }
                             $list[(string)$idx++] = ["id" => $c['cat_id'], "is_pred_test" => 0, "name" => $c['category_name'], "icon" => $configs['vpath'] . $icon];
                         }
 
                         $predic_list = getQuery("predic_test", "*", array("course_id" => $test_id, "online" => "Y"), "test_order");
 
                         foreach ($predic_list as $p) {
+                            if ($math_only && !isMathRelatedPredTestRow($p)) {
+                                continue;
+                            }
                             $list[] = [
                                 "id" => $p['Predic_test_id'],
                                 "is_pred_test" => 1,
@@ -878,12 +940,18 @@ if ($_POST['action']) {
                         }
                     } else {
                         foreach ($cat_list as $c) {
+                            if ($math_only && !isMathRelatedCategoryRow($c)) {
+                                continue;
+                            }
                             $list[] = ["id" => $c['cat_id'], "is_pred_test" => 0, "name" => $c['category_name'], "icon" => $configs['vpath'] . $icon];
                         }
 
                         $predic_list = getQuery("predic_test", "*", array("course_id" => $test_id, "online" => "Y"), "test_order");
 
                         foreach ($predic_list as $p) {
+                            if ($math_only && !isMathRelatedPredTestRow($p)) {
+                                continue;
+                            }
                             $list[] = [
                                 "id" => $p['Predic_test_id'],
                                 "is_pred_test" => 1,
@@ -944,12 +1012,16 @@ if ($_POST['action']) {
 
                 if ($test_id) {
                     $icon = "uploads/test.png";
+                    $math_only = belongsToParentAsvabCourse($test_id, 60);
 
                     $list = array();
 
-                    $cat_list = getQuery("category", "*", array("course_id" => $test_id, "online" => "Y", "[or]"=>"shortcode in ('Math', 'FPT Math')"), "category_order");
+                    $cat_list = getQuery("category", "*", array("course_id" => $test_id, "online" => "Y"), "category_order");
 
                     foreach ($cat_list as $c) {
+                        if ($math_only && !isMathRelatedCategoryRow($c)) {
+                            continue;
+                        }
 
                         if ($c['category_name'] == "Flashcards") {
                             $list[$c['category_name']] = array("is_free" => $c['free'], "flashcard_id" => $c['cat_id'], "test_only" => 1, "icon" => $configs['vpath'] . "uploads/test.png", "action" => "knowledge-update");
@@ -982,6 +1054,9 @@ if ($_POST['action']) {
 
                     $predic_list = getQuery("predic_test", "*", array("course_id" => $test_id, "online" => "Y"), "test_order");
                     foreach ($predic_list as $p) {
+                        if ($math_only && !isMathRelatedPredTestRow($p)) {
+                            continue;
+                        }
 
                         if ($paid_member == 'Y') {
                             $p['paid'] = 1;
@@ -3383,12 +3458,16 @@ if ($_POST['action']) {
 
                 if ($test_id) {
                     $icon = "uploads/test.png";
+                    $math_only = belongsToParentAsvabCourse($test_id, 60);
 
                     $cat_list = getRowsByJoin(array("category as c", "app_saved_questions as a"), "c.*", array("c.course_id" => $test_id, "c.online" => "Y", "a.user_id" => $user_id), array("c.cat_id" => "a.cat_id"), "c.category_order", "", "", "c.cat_id");
 
                     $list = array();
 
                     foreach ($cat_list as $c) {
+                        if ($math_only && !isMathRelatedCategoryRow($c)) {
+                            continue;
+                        }
                         $list[] = ["id" => $c['cat_id'], "name" => $c['category_name'], "icon" => $configs['vpath'] . $icon];
                     }
 
