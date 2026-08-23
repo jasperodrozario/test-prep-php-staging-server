@@ -60,9 +60,11 @@ switch ($action) {
         break;
 
     case "add-course":
+        $existing_variants = $existing_variants ?? [];
+        $form_course_id = $_GET['course_id'] ?? ($db_value['course_id'] ?? '');
         ?>
-        <form method="post" action='<?= $configs['admin_vpath'] ?>asvab-course-list?action=add-course' enctype="multipart/form-data">
-            <input type="hidden" name="course_id" value="<?php echo $_GET['course_id'] ?>">
+        <form method="post" action='<?= $configs['admin_vpath'] ?>asvab-course-list?action=add-course<?= $form_course_id ? '&course_id=' . (int)$form_course_id : '' ?>' enctype="multipart/form-data">
+            <input type="hidden" name="course_id" value="<?php echo htmlspecialchars((string)$form_course_id); ?>">
 
             <table width="100%" border="0" align="center" cellspacing="1" cellpadding="4" class='table table-bordered'>
 
@@ -134,6 +136,39 @@ switch ($action) {
                     <td><input type="number" name="ord" class='form-control' value="<?php echo $db_value['ord']; ?>"></td>
                 </tr>
 
+                <?php if ($form_course_id): ?>
+                <tr>
+                    <td align="left" style="vertical-align: top;">Course Variants (optional)</td>
+                    <td>
+                        <?php if (!empty($existing_variants)): ?>
+                            <table class="table table-bordered table-condensed" style="margin-bottom: 12px;">
+                                <thead>
+                                    <tr>
+                                        <th>Label</th>
+                                        <th>Course Name</th>
+                                        <th>Main Course ID</th>
+                                        <th>Order</th>
+                                        <th>Active</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($existing_variants as $ev): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($ev['label']) ?></td>
+                                            <td><?= htmlspecialchars($ev['course_name']) ?></td>
+                                            <td><?= (int)$ev['main_course_id'] ?></td>
+                                            <td><?= (int)$ev['ord'] ?></td>
+                                            <td><?= ((int)$ev['is_active'] === 1) ? 'Y' : 'N' ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php endif; ?>
+                        <a href="asvab-course-list?action=add-variant&course_id=<?= (int)$form_course_id ?>" class="btn btn-primary">Add Variant</a>
+                    </td>
+                </tr>
+                <?php endif; ?>
+
                 <tr>
                     <td align="left" style="vertical-align: top;">Lesson Plan</td>
                     <td>
@@ -182,6 +217,133 @@ switch ($action) {
                 </tr>
             </table>
         </form>
+    <?
+        break;
+    case "add-variant":
+        $variant_course_id = (int)($course_id ?? $_GET['course_id'] ?? 0);
+        $selected_group_id = (int)($db_value['group_id'] ?? 0);
+        ?>
+        <form method="post" action='<?= $configs['admin_vpath'] ?>asvab-course-list?action=add-variant&course_id=<?= $variant_course_id ?>' id="variant-form" novalidate>
+            <input type="hidden" name="course_id" value="<?= $variant_course_id ?>">
+            <table width="100%" border="0" align="center" cellspacing="1" cellpadding="4" class='table table-bordered'>
+                <tr>
+                    <td align="left" width="400px">Parent Course</td>
+                    <td><?= htmlspecialchars($parent_course['name'] ?? '') ?></td>
+                </tr>
+                <tr>
+                    <td align="left">Label <span class="text-danger">*</span></td>
+                    <td>
+                        <input type="text" name="label" class="form-control" value="<?= htmlspecialchars($db_value['label'] ?? '') ?>" placeholder="e.g. Grade 5" required>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Name <span class="text-danger">*</span></td>
+                    <td>
+                        <input type="text" name="course_name" class="form-control" value="<?= htmlspecialchars($db_value['course_name'] ?? '') ?>" required>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Description</td>
+                    <td>
+                        <textarea class="form-control description" name="description" rows="4"><?= html_entity_decode($db_value['description'] ?? '') ?></textarea>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Display Order <span class="text-danger">*</span></td>
+                    <td>
+                        <input type="number" name="ord" class="form-control" value="<?= htmlspecialchars((string)($db_value['ord'] ?? '0')) ?>" required style="max-width: 120px;">
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Course Group <span class="text-danger">*</span></td>
+                    <td>
+                        <select name="group_id" class="form-control" required>
+                            <option value="">Select Course Group</option>
+                            <?php
+                            $course_group = getQuery("course_group", "*", "", "group_name");
+                            foreach ($course_group as $dd) {
+                                $gid = (int)$dd['group_id'];
+                                $selected = ($selected_group_id === $gid) ? ' selected' : '';
+                                echo '<option value="' . $gid . '"' . $selected . '>' . htmlspecialchars($dd['group_name']) . '</option>';
+                            }
+                            ?>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Options</td>
+                    <td>
+                        <label style="margin-right: 16px;">
+                            <input type="checkbox" name="is_online" value="1" <?= isset($db_value['is_online']) ? 'checked' : '' ?>> Is Online
+                        </label>
+                        <label style="margin-right: 16px;">
+                            <input type="checkbox" name="app" value="1" <?= !empty($db_value['app']) ? 'checked' : '' ?>> App
+                        </label>
+                        <label style="margin-right: 16px;">
+                            <input type="checkbox" name="tutoring" value="1" <?= !empty($db_value['tutoring']) ? 'checked' : '' ?>> Tutoring
+                        </label>
+                        <label>
+                            <input type="checkbox" name="subscribe" value="1" <?= !empty($db_value['subscribe']) ? 'checked' : '' ?>> Subscribe
+                        </label>
+                    </td>
+                </tr>
+            </table>
+            <div style="text-align: center;">
+                <input type="submit" name="submit" value="Save" class="btn btn-success">&nbsp;&nbsp;
+                <a href="asvab-course-list?action=add-course&course_id=<?= $variant_course_id ?>" class="btn btn-default">Back To Course</a>
+            </div>
+        </form>
+        <script>
+            (function() {
+                var form = document.getElementById('variant-form');
+                if (!form) return;
+
+                form.addEventListener('submit', function(e) {
+                    var label = form.querySelector('[name="label"]');
+                    var courseName = form.querySelector('[name="course_name"]');
+                    var ord = form.querySelector('[name="ord"]');
+                    var groupId = form.querySelector('[name="group_id"]');
+                    var errors = [];
+
+                    if (!label.value.trim()) {
+                        errors.push('Label is required.');
+                        label.setCustomValidity('Label is required.');
+                    } else {
+                        label.setCustomValidity('');
+                    }
+
+                    if (!courseName.value.trim()) {
+                        errors.push('Name is required.');
+                        courseName.setCustomValidity('Name is required.');
+                    } else {
+                        courseName.setCustomValidity('');
+                    }
+
+                    if (ord.value === '') {
+                        errors.push('Display Order is required.');
+                        ord.setCustomValidity('Display Order is required.');
+                    } else {
+                        ord.setCustomValidity('');
+                    }
+
+                    if (!groupId.value || groupId.value === '0') {
+                        errors.push('Course Group is required.');
+                        groupId.setCustomValidity('Course Group is required.');
+                    } else {
+                        groupId.setCustomValidity('');
+                    }
+
+                    if (errors.length) {
+                        e.preventDefault();
+                        alert(errors.join('\n'));
+                        if (errors[0].indexOf('Label') === 0) label.focus();
+                        else if (errors[0].indexOf('Name') === 0) courseName.focus();
+                        else if (errors[0].indexOf('Display') === 0) ord.focus();
+                        else groupId.focus();
+                    }
+                });
+            })();
+        </script>
     <?
         break;
     case "add-session":
