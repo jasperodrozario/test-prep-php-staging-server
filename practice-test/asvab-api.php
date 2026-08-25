@@ -3751,8 +3751,34 @@ if ($_POST['action']) {
 
             // NEW: Read user_id from POST
             $posted_user_id = isset($_POST["user_id"]) ? (int)$_POST["user_id"] : 0;
+            $auth_token = isset($_POST["auth_token"]) ? trim((string)$_POST["auth_token"]) : "";
             $referral_code = isset($_POST["ref_code"]) ? trim($_POST["ref_code"]) : (isset($_POST["referral_id"]) ? trim($_POST["referral_id"]) : "");
             $ref_type      = isset($_POST["ref_type"]) ? trim($_POST["ref_type"]) : "";
+
+            // Prefer auth_token over client-trusted user_id / registration fields
+            if ($auth_token !== "") {
+                $loginRow = getDataByWhere("login", "*", ["auth_token" => $auth_token], 0);
+                if (is_array($loginRow) && isset($loginRow[0]) && is_array($loginRow[0])) {
+                    $loginRow = $loginRow[0];
+                }
+                $tokenUser = null;
+                if (is_array($loginRow) && !empty($loginRow["user_id"])) {
+                    $tokenUser = getDataByWhere("user", "*", ["user_id" => (int)$loginRow["user_id"]], 0);
+                    if (is_array($tokenUser) && isset($tokenUser[0]) && is_array($tokenUser[0])) {
+                        $tokenUser = $tokenUser[0];
+                    }
+                }
+                if (!is_array($tokenUser) || empty($tokenUser["user_id"])) {
+                    $response = $respond(401, false, "Invalid auth token.");
+                    break;
+                }
+                $posted_user_id = (int)$tokenUser["user_id"];
+                if ($first_name === "") $first_name = (string)($tokenUser["first_name"] ?? "");
+                if ($last_name === "") $last_name = (string)($tokenUser["last_name"] ?? "");
+                if ($email === "") $email = (string)($tokenUser["email"] ?? "");
+                if ($mobile === "") $mobile = (string)($tokenUser["mobile"] ?? "");
+            }
+
             // Basic Validation
             $allowed_payment_status = ["COMPLETED", "APPROVED"];
             if ($payment_status === "" || !in_array($payment_status, $allowed_payment_status, true)) {
@@ -4018,9 +4044,48 @@ if ($_POST['action']) {
 
             $referral_code = isset($_POST["ref_code"]) ? trim($_POST["ref_code"]) : "";
             $ref_type      = isset($_POST["ref_type"]) ? trim($_POST["ref_type"]) : "";
+            $auth_token    = isset($_POST["auth_token"]) ? trim((string)$_POST["auth_token"]) : "";
+            $posted_user_id = isset($_POST["user_id"]) ? (int)$_POST["user_id"] : 0;
+
+            // Authenticated existing-user path (marketing logged-in checkout)
+            $tokenUser = null;
+            if ($auth_token !== "") {
+                $loginRow = getDataByWhere("login", "*", ["auth_token" => $auth_token], 0);
+                if (is_array($loginRow) && isset($loginRow[0]) && is_array($loginRow[0])) {
+                    $loginRow = $loginRow[0];
+                }
+                if (is_array($loginRow) && !empty($loginRow["user_id"])) {
+                    $tokenUser = getDataByWhere("user", "*", ["user_id" => (int)$loginRow["user_id"]], 0);
+                    if (is_array($tokenUser) && isset($tokenUser[0]) && is_array($tokenUser[0])) {
+                        $tokenUser = $tokenUser[0];
+                    }
+                }
+                if (!is_array($tokenUser) || empty($tokenUser["user_id"])) {
+                    $response = [
+                        "status"    => 401,
+                        "isSuccess" => false,
+                        "message"   => "Invalid auth token."
+                    ];
+                    break;
+                }
+                $posted_user_id = (int)$tokenUser["user_id"];
+                $email = (string)($tokenUser["email"] ?? $email);
+                $first_name = $first_name !== '' ? $first_name : (string)($tokenUser["first_name"] ?? '');
+                $last_name = $last_name !== '' ? $last_name : (string)($tokenUser["last_name"] ?? '');
+                $mobile = $mobile !== '' ? $mobile : (string)($tokenUser["mobile"] ?? '');
+            }
 
             // 2) Validate required fields
-            if ($subscription_id === '' || $plan_variation_id === '' || $email === '' || $password === '') {
+            if ($subscription_id === '' || $plan_variation_id === '') {
+                $response = [
+                    "status"    => 400,
+                    "isSuccess" => false,
+                    "message"   => "Missing required fields."
+                ];
+                break;
+            }
+
+            if ($tokenUser === null && ($email === '' || $password === '')) {
                 $response = [
                     "status"    => 400,
                     "isSuccess" => false,
@@ -4074,18 +4139,96 @@ if ($_POST['action']) {
                 $existing = getDataByWhere("square_subscriptions", "*", [
                     "subscription_id" => $subscription_id
                 ]);
+                if (is_array($existing) && isset($existing[0]) && is_array($existing[0])) {
+                    $existing = $existing[0];
+                }
 
                 $response = [
                     "status"          => 200,
                     "isSuccess"       => true,
                     "message"         => "Subscription already recorded. Waiting for invoice payment.",
-                    "user_id"         => (int)$existing["user_id"],
+                    "user_id"         => (int)($existing["user_id"] ?? 0),
                     "subscription_id" => $subscription_id
                 ];
                 break;
             }
 
-            // 5) Prevent duplicate email
+            $package_id = $posted_package_id;
+
+            // Existing authenticated user — skip create; update subscription like web-user-registration-subscription
+            if ($tokenUser !== null) {
+                $user_id = $posted_user_id;
+
+                $existing_subscription = getDataByWhere("subscription", "*", ["user_id" => $user_id]);
+                if (is_array($existing_subscription) && isset($existing_subscription[0]) && is_array($existing_subscription[0])) {
+                    $existing_subscription = $existing_subscription[0];
+                }
+                $sub_data = [
+                    "course_id"         => $course_id,
+                    "subscription_date" => $formatted_date,
+                    "package_id"        => $package_id,
+                    "session_id"        => $posted_session_id,
+                    "amount"            => "0.00",
+                    "payment_mode"      => "",
+                    "currency"          => $currency,
+                    "txn_id"            => $subscription_id,
+                    "customer_id"       => $square_customer_id,
+                ];
+
+                if (!empty($existing_subscription) && !empty($existing_subscription["id"])) {
+                    updateTable("subscription", $sub_data, ["user_id" => $user_id]);
+                    $sub_id = $existing_subscription["id"];
+                } else {
+                    $sub_data["user_id"] = $user_id;
+                    $sub_id = insertTable("subscription", $sub_data);
+                }
+
+                if (!$sub_id) {
+                    $response = [
+                        "status"    => 500,
+                        "isSuccess" => false,
+                        "message"   => "Failed to create subscription record."
+                    ];
+                    break;
+                }
+
+                $okSub = insertTable("square_subscriptions", [
+                    "subscription_id"    => $subscription_id,
+                    "square_customer_id" => $square_customer_id,
+                    "plan_variation_id"  => $plan_variation_id,
+                    "amount"             => $decimal_amount,
+                    "currency"           => $currency,
+                    "status"             => "PENDING",
+                    "start_date"         => $formatted_date,
+                    "cancel_date"        => null,
+                    "user_id"            => $user_id,
+                    "created_at"         => $formatted_date_time,
+                    "updated_at"         => $formatted_date_time
+                ]);
+
+                if (!$okSub) {
+                    $response = [
+                        "status"    => 500,
+                        "isSuccess" => false,
+                        "message"   => "Failed to save Square subscription metadata."
+                    ];
+                    break;
+                }
+
+                $response = [
+                    "status"          => 200,
+                    "isSuccess"       => true,
+                    "message"         => "Subscription recorded. Access will activate after invoice payment.",
+                    "user_id"         => $user_id,
+                    "subscription_id" => $subscription_id,
+                    "course_id"       => $course_id,
+                    "is_existing"     => true,
+                    "course_id_source"=> $resolved_course["source"],
+                ];
+                break;
+            }
+
+            // 5) Prevent duplicate email (new users only)
             $email_exists = (int)getTotalRow("user", ["email" => $email]);
             if ($email_exists > 0) {
                 $response = [
@@ -4095,8 +4238,6 @@ if ($_POST['action']) {
                 ];
                 break;
             }
-
-            $package_id = $posted_package_id;
 
             // 8) Create User (PENDING access)
             $user_id = insertTable("user", [
@@ -4204,6 +4345,7 @@ if ($_POST['action']) {
             $package_id             = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 0;
             $user_id                = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
             $is_variant             = parseIsVariant($_POST['is_variant'] ?? 0);
+            $auth_token             = isset($_POST['auth_token']) ? trim((string)$_POST['auth_token']) : '';
 
             // Next.js may send amount (preferred) or raw_amount (legacy) in cents
             $raw_amount = isset($_POST['amount']) ? (float)$_POST['amount'] : 0;
@@ -4227,6 +4369,37 @@ if ($_POST['action']) {
                     "status"    => 400,
                     "isSuccess" => false,
                     "message"   => "Missing user_id."
+                ];
+                break;
+            }
+
+            if ($auth_token === '') {
+                $response = [
+                    "status"    => 401,
+                    "isSuccess" => false,
+                    "message"   => "auth_token is required."
+                ];
+                break;
+            }
+
+            $tokenUser = null;
+            if ($auth_token !== "") {
+                $loginRow = getDataByWhere("login", "*", ["auth_token" => $auth_token], 0);
+                if (is_array($loginRow) && isset($loginRow[0]) && is_array($loginRow[0])) {
+                    $loginRow = $loginRow[0];
+                }
+                if (is_array($loginRow) && !empty($loginRow["user_id"])) {
+                    $tokenUser = getDataByWhere("user", "*", ["user_id" => (int)$loginRow["user_id"]], 0);
+                    if (is_array($tokenUser) && isset($tokenUser[0]) && is_array($tokenUser[0])) {
+                        $tokenUser = $tokenUser[0];
+                    }
+                }
+            }
+            if (!is_array($tokenUser) || empty($tokenUser["user_id"]) || (int)$tokenUser["user_id"] !== $user_id) {
+                $response = [
+                    "status"    => 401,
+                    "isSuccess" => false,
+                    "message"   => "Invalid auth token."
                 ];
                 break;
             }
@@ -5550,12 +5723,50 @@ if ($_POST['action']) {
                 break;
             }
 
+            $auth_token = isset($_POST['auth_token']) ? trim((string)$_POST['auth_token']) : '';
+            $tokenUser = null;
+            if ($auth_token !== '') {
+                $loginRow = getDataByWhere("login", "*", ["auth_token" => $auth_token], 0);
+                if (is_array($loginRow) && isset($loginRow[0]) && is_array($loginRow[0])) {
+                    $loginRow = $loginRow[0];
+                }
+                if (is_array($loginRow) && !empty($loginRow["user_id"])) {
+                    $tokenUser = getDataByWhere("user", "*", ["user_id" => (int)$loginRow["user_id"]], 0);
+                    if (is_array($tokenUser) && isset($tokenUser[0]) && is_array($tokenUser[0])) {
+                        $tokenUser = $tokenUser[0];
+                    }
+                }
+                if (!is_array($tokenUser) || empty($tokenUser["user_id"])) {
+                    $response = [
+                        "status"    => 401,
+                        "isSuccess" => false,
+                        "message"   => "Invalid auth token.",
+                    ];
+                    break;
+                }
+            }
+
             $amount = getFldValueById("asvab_tutor_package_sessions", "price", array("session_id" => $_POST['session_id']));
 
             $test_name = getFldValueById("course", "course_name", array("course_id" => $course_id));
-            $user_name = $_POST['first_name'] . " " . $_POST['last_name'];
+            $first_name = $tokenUser
+                ? (string)($tokenUser["first_name"] ?? ($_POST['first_name'] ?? ''))
+                : ($_POST['first_name'] ?? '');
+            $last_name = $tokenUser
+                ? (string)($tokenUser["last_name"] ?? ($_POST['last_name'] ?? ''))
+                : ($_POST['last_name'] ?? '');
+            $email = $tokenUser
+                ? (string)($tokenUser["email"] ?? ($_POST['email'] ?? ''))
+                : ($_POST['email'] ?? '');
+            $mobile = $tokenUser
+                ? (string)($tokenUser["mobile"] ?? ($_POST['mobile'] ?? ''))
+                : ($_POST['mobile'] ?? '');
+            $user_name = trim($first_name . " " . $last_name);
 
-            $package_id = 62;
+            $package_id = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 62;
+            if ($package_id <= 0) {
+                $package_id = 62;
+            }
             $package = getDataByWhere("package", "*", ["package_id" => $package_id]);
 
             $month = 4;
@@ -5570,26 +5781,99 @@ if ($_POST['action']) {
             $formatted_date = $date->format('Y-m-d');
             $formatted_date_time = $date->format('Y-m-d H:i:s');
 
-            $user_id = insertTable("user", array("email" => $_POST['email'], "password" => md5($_POST['password']), "first_name" => $_POST['first_name'], "last_name" => $_POST['last_name'], "mobile" => $_POST['mobile'], "user_type" => "Student", "reg_date" => $formatted_date, "activation_status" => "N", "reg_at" => "asvab-web", "fp" => 0, "pt" => 0));
+            if ($tokenUser) {
+                $user_id = (int)$tokenUser["user_id"];
+                if (($tokenUser["activation_status"] ?? "") === "N") {
+                    updateTable("user", ["activation_status" => "Y"], ["user_id" => $user_id]);
+                }
+            } else {
+                $user_id = insertTable("user", array(
+                    "email" => $email,
+                    "password" => md5($_POST['password']),
+                    "first_name" => $first_name,
+                    "last_name" => $last_name,
+                    "mobile" => $mobile,
+                    "user_type" => "Student",
+                    "reg_date" => $formatted_date,
+                    "activation_status" => "N",
+                    "reg_at" => "asvab-web",
+                    "fp" => 0,
+                    "pt" => 0
+                ));
+            }
 
-            $payment_id = insertTable("asvab_payments_mobile", array("mobile" => $_POST['mobile'], "ref_code" => $_POST['ref_code'], "amount" => $_POST['amount'], "currency" => $_POST['currency'], "created_at" => $_POST['created_at'], "user_id" => $user_id, "test_name" => $test_name, "user_name" => $user_name, "user_created_at" => date("Y-m-d")));
+            $payment_id = insertTable("asvab_payments_mobile", array(
+                "mobile" => $mobile,
+                "ref_code" => $_POST['ref_code'] ?? '',
+                "amount" => $_POST['amount'],
+                "currency" => $_POST['currency'],
+                "created_at" => $_POST['created_at'],
+                "user_id" => $user_id,
+                "test_name" => $test_name,
+                "user_name" => $user_name,
+                "user_created_at" => date("Y-m-d")
+            ));
 
-            insertTable("login", array("user_id" => $user_id, "last_login" => $formatted_date_time));
+            if ($tokenUser) {
+                $loginRow = getDataByWhere("login", "login_id", ["user_id" => $user_id]);
+                if (is_array($loginRow) && isset($loginRow[0]) && is_array($loginRow[0])) {
+                    $loginRow = $loginRow[0];
+                }
+                if (is_array($loginRow) && !empty($loginRow["login_id"])) {
+                    updateTable("login", ["last_login" => $formatted_date_time], ["user_id" => $user_id]);
+                } else {
+                    insertTable("login", array("user_id" => $user_id, "last_login" => $formatted_date_time));
+                }
 
-            $sub_id = insertTable("subscription", array("course_id" => $course_id, "user_id" => $user_id, "subscription_date" => $formatted_date, "expire_date" => $expire_date, "package_id" => $package_id, "amount" => $_POST['amount'], "payment_mode" => $_POST['payment_source_type'], "currency" => $_POST['currency']));
+                $existing_subscription = getDataByWhere("subscription", "*", ["user_id" => $user_id]);
+                if (is_array($existing_subscription) && isset($existing_subscription[0]) && is_array($existing_subscription[0])) {
+                    $existing_subscription = $existing_subscription[0];
+                }
+                $sub_data = array(
+                    "course_id" => $course_id,
+                    "expire_date" => $expire_date,
+                    "package_id" => $package_id,
+                    "session_id" => isset($_POST['session_id']) ? (int)$_POST['session_id'] : 0,
+                    "amount" => $_POST['amount'],
+                    "payment_mode" => $_POST['payment_source_type'] ?? '',
+                    "currency" => $_POST['currency']
+                );
+                if (!empty($existing_subscription) && !empty($existing_subscription["id"])) {
+                    updateTable("subscription", $sub_data, ["user_id" => $user_id]);
+                    $sub_id = $existing_subscription["id"];
+                } else {
+                    $sub_data["user_id"] = $user_id;
+                    $sub_data["subscription_date"] = $formatted_date;
+                    $sub_id = insertTable("subscription", $sub_data);
+                }
+            } else {
+                insertTable("login", array("user_id" => $user_id, "last_login" => $formatted_date_time));
+
+                $sub_id = insertTable("subscription", array(
+                    "course_id" => $course_id,
+                    "user_id" => $user_id,
+                    "subscription_date" => $formatted_date,
+                    "expire_date" => $expire_date,
+                    "package_id" => $package_id,
+                    "amount" => $_POST['amount'],
+                    "payment_mode" => $_POST['payment_source_type'] ?? '',
+                    "currency" => $_POST['currency']
+                ));
+            }
 
             // -------------------------
-            // Send STYLED register email
+            // Send STYLED register email (new users only)
             // -------------------------
+            if (!$tokenUser) {
             $mail = getDataByWhere("mailsetup", "*", array("mail_type" => "Register"));
             if (!empty($mail) && isset($mail['template'], $mail['subject'])) {
                 $timestamp = date("F j, Y \a\\t g:i A");
                 $body = $mail['template'];
 
                 // Replace placeholders
-                $body = str_replace("{name}", $_POST['first_name'] . " " . $_POST['last_name'], $body);
-                $body = str_replace("{first_name}", $_POST['first_name'], $body);
-                $body = str_replace("{email}", $_POST['email'], $body);
+                $body = str_replace("{name}", $user_name, $body);
+                $body = str_replace("{first_name}", $first_name, $body);
+                $body = str_replace("{email}", $email, $body);
                 $body = str_replace("{timestamp}", $timestamp, $body);
 
                 // TRIPLE DECODE
@@ -5620,16 +5904,18 @@ if ($_POST['action']) {
                 $styled_body = str_replace('<br/>', '<br style="display: block;">', $styled_body);
 
                 $subject = $mail['subject'];
-                smtpmailer($_POST['email'], $setting['support_mail'], ucwords($configs['dotcom']), $subject, $styled_body);
+                smtpmailer($email, $setting['support_mail'], ucwords($configs['dotcom']), $subject, $styled_body);
+            }
             }
 
             if ($sub_id) {
                 $response = [
                     "status"     => 200,
                     "isSuccess"  => true,
-                    "message"    => "User registered successfully.",
+                    "message"    => $tokenUser ? "Payment recorded for existing user." : "User registered successfully.",
                     "user_id"    => $user_id,
                     "course_id"  => $course_id,
+                    "is_existing"=> (bool)$tokenUser,
                 ];
             } else {
                 $response = [
@@ -5672,13 +5958,53 @@ if ($_POST['action']) {
             $email = trim($_POST['email']);
             $password = md5(trim($_POST['password']));
             $user = getDataByWhere("user", "*", array("email" => $email, "password" => $password));
-            if ($user) {
+            if (is_array($user) && isset($user[0]) && is_array($user[0])) {
+                $user = $user[0];
+            }
+            if (is_array($user) && !empty($user["user_id"])) {
+                $user_id = (int)$user["user_id"];
+
+                // Mint opaque session token (same approach as portal subscription-profile.php)
+                $auth_token = bin2hex(
+                    function_exists('random_bytes')
+                        ? random_bytes(32)
+                        : openssl_random_pseudo_bytes(32)
+                );
+                $now = date("Y-m-d H:i:s");
+                $loginRow = getDataByWhere("login", "login_id", ["user_id" => $user_id]);
+                if (is_array($loginRow) && isset($loginRow[0]) && is_array($loginRow[0])) {
+                    $loginRow = $loginRow[0];
+                }
+                if (is_array($loginRow) && !empty($loginRow["login_id"])) {
+                    updateTable("login", [
+                        "auth_token"            => $auth_token,
+                        "auth_token_created_at" => $now,
+                        "last_login"            => $now,
+                    ], ["user_id" => $user_id]);
+                } else {
+                    insertTable("login", [
+                        "user_id"               => $user_id,
+                        "auth_token"            => $auth_token,
+                        "auth_token_created_at" => $now,
+                        "last_login"            => $now,
+                    ]);
+                }
+
+                $safe_user = [
+                    "user_id"    => $user_id,
+                    "first_name" => (string)($user["first_name"] ?? ""),
+                    "last_name"  => (string)($user["last_name"] ?? ""),
+                    "email"      => (string)($user["email"] ?? $email),
+                ];
+
                 $response = [
-                    "status"     => 200,
-                    "isSuccess"  => true,
-                    "message"    => "User logged in successfully.",
-                    "url"        => "https://staging-test-prep.asvab-tutoring.com/practice-test/login/" . $email . "/" . $password,
-                    "data"       => $user
+                    "status"      => 200,
+                    "isSuccess"   => true,
+                    "message"     => "User logged in successfully.",
+                    "url"         => "https://staging-test-prep.asvab-tutoring.com/practice-test/login/" . $email . "/" . $password,
+                    "auth_token"  => $auth_token,
+                    "user_id"     => $user_id,
+                    "data"        => $safe_user,
                 ];
             } else {
                 $response = [
