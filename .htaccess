@@ -90,9 +90,5 @@
 	RewriteRule ^register-free$ 	application/register-free.php?account=free [L]
     
 	RewriteRule ^api-check$               application/api-check.php
-
-	RewriteRule ^testingagdumbagdumtunituna$               application/testing.php
-	
-	
 	
 </IfModule>
