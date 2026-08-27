@@ -5964,30 +5964,44 @@ if ($_POST['action']) {
             if (is_array($user) && !empty($user["user_id"])) {
                 $user_id = (int)$user["user_id"];
 
-                // Mint opaque session token (same approach as portal subscription-profile.php)
-                $auth_token = bin2hex(
-                    function_exists('random_bytes')
-                        ? random_bytes(32)
-                        : openssl_random_pseudo_bytes(32)
-                );
                 $now = date("Y-m-d H:i:s");
-                $loginRow = getDataByWhere("login", "login_id", ["user_id" => $user_id]);
+                $loginRow = getDataByWhere("login", "*", ["user_id" => $user_id]);
                 if (is_array($loginRow) && isset($loginRow[0]) && is_array($loginRow[0])) {
                     $loginRow = $loginRow[0];
                 }
-                if (is_array($loginRow) && !empty($loginRow["login_id"])) {
+
+                $existing_token = "";
+                if (is_array($loginRow) && !empty($loginRow["auth_token"])) {
+                    $existing_token = trim((string)$loginRow["auth_token"]);
+                }
+
+                // Reuse a still-valid portal/marketing token so buy-more /
+                // subscribe-again links keep working. Mint only when missing.
+                if ($existing_token !== "") {
+                    $auth_token = $existing_token;
                     updateTable("login", [
-                        "auth_token"            => $auth_token,
-                        "auth_token_created_at" => $now,
-                        "last_login"            => $now,
+                        "last_login" => $now,
                     ], ["user_id" => $user_id]);
                 } else {
-                    insertTable("login", [
-                        "user_id"               => $user_id,
-                        "auth_token"            => $auth_token,
-                        "auth_token_created_at" => $now,
-                        "last_login"            => $now,
-                    ]);
+                    $auth_token = bin2hex(
+                        function_exists('random_bytes')
+                            ? random_bytes(32)
+                            : openssl_random_pseudo_bytes(32)
+                    );
+                    if (is_array($loginRow) && !empty($loginRow["login_id"])) {
+                        updateTable("login", [
+                            "auth_token"            => $auth_token,
+                            "auth_token_created_at" => $now,
+                            "last_login"            => $now,
+                        ], ["user_id" => $user_id]);
+                    } else {
+                        insertTable("login", [
+                            "user_id"               => $user_id,
+                            "auth_token"            => $auth_token,
+                            "auth_token_created_at" => $now,
+                            "last_login"            => $now,
+                        ]);
+                    }
                 }
 
                 $safe_user = [
