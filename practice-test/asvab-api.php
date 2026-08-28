@@ -5700,7 +5700,12 @@ if ($_POST['action']) {
                     "last_name"          => (string)($u["last_name"] ?? ""),
                     "email"              => (string)($u["email"] ?? ""),
                     "square_customer_id" => (string)$square_customer_id
-                ]
+                ],
+                "url" => (
+                    (string)($u["email"] ?? "") !== "" && (string)($u["password"] ?? "") !== ""
+                )
+                    ? "https://staging-test-prep.asvab-tutoring.com/practice-test/login/" . (string)$u["email"] . "/" . (string)$u["password"]
+                    : "",
             ]);
 
             break;
