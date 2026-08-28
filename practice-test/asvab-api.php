@@ -6011,6 +6011,12 @@ if ($_POST['action']) {
                     "email"      => (string)($user["email"] ?? $email),
                 ];
 
+                $paid_user = (
+                    (int)getFldValueById("square_payments", "user_id", ["user_id" => $user_id]) > 0
+                    || (int)getFldValueById("square_subscriptions", "user_id", ["user_id" => $user_id]) > 0
+                    || (int)getFldValueById("asvab_payments_mobile", "user_id", ["user_id" => $user_id]) > 0
+                ) ? 1 : 0;
+
                 $response = [
                     "status"      => 200,
                     "isSuccess"   => true,
@@ -6018,6 +6024,7 @@ if ($_POST['action']) {
                     "url"         => "https://staging-test-prep.asvab-tutoring.com/practice-test/login/" . $email . "/" . $password,
                     "auth_token"  => $auth_token,
                     "user_id"     => $user_id,
+                    "paid_user"   => $paid_user,
                     "data"        => $safe_user,
                 ];
             } else {
