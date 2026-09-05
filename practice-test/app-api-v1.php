@@ -3759,7 +3759,7 @@ if ($_POST['action']) {
 
         case "tutoring-pricing-web-url":
 
-            if ($_POST['course_id'] == 28 || $_POST['course_id'] == 38 || $_POST['course_id'] == 39) {
+            if ($_POST['course_id'] == 27 || $_POST['course_id'] == 28 || $_POST['course_id'] == 38 || $_POST['course_id'] == 39) {
                 $web_url = "https://www.asvab-tutoring.com/package-details/1-on-1-tutoring/asvab";
             } else if ($_POST['course_id'] == 24) {
                 $web_url = "https://www.asvab-tutoring.com/package-details/1-on-1-tutoring/afoqt";
