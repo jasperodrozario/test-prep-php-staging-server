@@ -50,7 +50,78 @@ function calculate_composite_score($categories, $cat_scores, $score_array)
         $total += isset($cat_scores[$cat]['total_question']) ? (int)$cat_scores[$cat]['total_question'] : 0;
     }
     $percentage = ($total > 0) ? round(($correct / $total) * 100) : 0;
+    return afoqtLookupPercentile($score_array, $percentage);
+}
+
+function afoqtLookupPercentile($score_array, $percentage)
+{
+    if (!is_array($score_array)) {
+        return 0;
+    }
+    $percentage = (int)$percentage;
+    if ($percentage < 0) {
+        $percentage = 0;
+    } elseif ($percentage > 100) {
+        $percentage = 100;
+    }
     return isset($score_array[$percentage]) ? $score_array[$percentage] : 0;
+}
+
+function isSingleQueryRow($rows)
+{
+    if (!is_array($rows) || empty($rows)) {
+        return false;
+    }
+    if (array_key_exists(0, $rows) && is_array($rows[0])) {
+        return false;
+    }
+    return array_key_exists('result_id', $rows)
+        || array_key_exists('cat_id', $rows)
+        || array_key_exists('Predic_test_id', $rows)
+        || array_key_exists('qid', $rows)
+        || array_key_exists('id', $rows);
+}
+
+function queryRowsOrEmpty($rows)
+{
+    // getQuery() returns a mysqli_result, not an array of rows.
+    if ($rows instanceof mysqli_result) {
+        $out = array();
+        while ($row = mysqli_fetch_assoc($rows)) {
+            $out[] = $row;
+        }
+        return $out;
+    }
+    if (empty($rows) || !is_array($rows)) {
+        return array();
+    }
+    if (isSingleQueryRow($rows)) {
+        return array($rows);
+    }
+    $out = array();
+    foreach ($rows as $row) {
+        if (is_array($row)) {
+            $out[] = $row;
+        }
+    }
+    return $out;
+}
+
+function firstQueryRow($rows)
+{
+    $rows = queryRowsOrEmpty($rows);
+    return empty($rows) ? null : $rows[0];
+}
+
+function queryRowId($row, $key = 'result_id')
+{
+    if (is_array($row) && isset($row[$key]) && $row[$key] !== '' && $row[$key] !== null) {
+        return $row[$key];
+    }
+    if (!is_array($row) && $row !== '' && $row !== null) {
+        return $row;
+    }
+    return null;
 }
 
 function isAfoqtCourse($test_id)
@@ -66,19 +137,6 @@ function isFullAfoqtPredTest($test_id, $pred_test_id)
 function afoqtHubPredName()
 {
     return "AFOQT Prediction test";
-}
-
-function firstQueryRow($rows)
-{
-    if (empty($rows) || !is_array($rows)) {
-        return null;
-    }
-    foreach ($rows as $row) {
-        if (is_array($row)) {
-            return $row;
-        }
-    }
-    return null;
 }
 
 function getAfoqtHubResultRow($user_id, $pred_test_id, $result_id = '')
@@ -2227,25 +2285,36 @@ if ($_POST['action']) {
                 $total_questions = 0;
                 $total_correct_ans = 0;
                 $total_cat_score = 0;
+                $pred_set_id = 0;
+                $reslt_id = 0;
+                $afoqt_score_array = (isset($data["oc_afoqt_pred_score_array"]) && is_array($data["oc_afoqt_pred_score_array"]))
+                    ? $data["oc_afoqt_pred_score_array"]
+                    : array();
                 $num_category = (int)getTotalRow("prediction_test_category", array("pred_test_id" => $_POST['pred_test_id']));
-                $pred_cat_list = getQuery("prediction_test_category", "*", array("pred_test_id" => $_POST['pred_test_id']), "", "", "", "id");
+                $pred_cat_list = queryRowsOrEmpty(getQuery("prediction_test_category", "*", array("pred_test_id" => $_POST['pred_test_id']), "", "", "", "id"));
 
                 if ($test_id == 28 || $test_id == 38 || $test_id == 39 || $test_id == 24) { // [ASVAB Tutoring, ASVAB Prep 2025, ASVAB GT, AFOQT] 
                     $cat_scores = array();
                 }
 
                 foreach ($pred_cat_list as $p) {
+                    if (!is_array($p) || empty($p['cat_id'])) {
+                        continue;
+                    }
                     $cat = getDataByWhere("category", "*", array("cat_id" => $p['cat_id']));
                     $cat_id = $p['cat_id'];
                     $cat_score = 0;
+                    $num_questions = isset($p['number_of_questions']) ? (int)$p['number_of_questions'] : 0;
                     $num_correct_ans = (int)getTotalRow($exam_table, array("iscorrect" => 1, "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "is_result" => 0));
 
                     if ($num_correct_ans) {
 
                         if ($test_id == 24) { // AFOQT Score Calculation
 
-                            $category_score_per = round(($num_correct_ans / $p['number_of_questions']) * 100);
-                            $cat_score = $data["oc_afoqt_pred_score_array"][$category_score_per];
+                            if ($num_questions > 0) {
+                                $category_score_per = round(($num_correct_ans / $num_questions) * 100);
+                                $cat_score = afoqtLookupPercentile($afoqt_score_array, $category_score_per);
+                            }
                         } else if (in_array($test_id, [21, 25, 26])) { // SIFT, ASTB and OAR Score Calculation
 
                             $category_score_per = round(($num_correct_ans / $p['number_of_questions']) * 100);
@@ -2278,23 +2347,25 @@ if ($_POST['action']) {
                             $cat_score = round(20 + $correct_ans_percentage * 0.55);
                         }
                     }
-                    if ($test_id == 24 && !empty($cat['shortcode'])) {
+                    if ($test_id == 24 && is_array($cat) && !empty($cat['shortcode'])) {
                         if (!isset($cat_scores) || !is_array($cat_scores)) {
                             $cat_scores = array();
                         }
                         $cat_scores[$cat['shortcode']]['correct'] = $num_correct_ans;
-                        $cat_scores[$cat['shortcode']]['total_question'] = $p['number_of_questions'];
+                        $cat_scores[$cat['shortcode']]['total_question'] = $num_questions;
                     }
                     $total_cat_score += $cat_score;
-                    $num_wrong_ans = $p['number_of_questions'] - $num_correct_ans;
-                    $total_questions += $p['number_of_questions'];
+                    $num_wrong_ans = $num_questions - $num_correct_ans;
+                    $total_questions += $num_questions;
                     $total_correct_ans += $num_correct_ans;
 
                     $pred_set_id = (int)getFldValueById("result", "pred_set_id", array("user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "score" => -1));
 
                     $result_id = getFldValueById("result", "result_id", array("user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "score" => -1));
 
-                    updateTable("result", ["score" => (int)$cat_score, "correct_answers" => $num_correct_ans, "result_date" => date('Y-m-d H:i:s')], ['user_id' => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "result_id" => $result_id]);
+                    if (!empty($result_id)) {
+                        updateTable("result", ["score" => (int)$cat_score, "correct_answers" => $num_correct_ans, "result_date" => date("Y-m-d")], ['user_id' => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "result_id" => $result_id]);
+                    }
                 }
 
 
@@ -2309,35 +2380,35 @@ if ($_POST['action']) {
 
                         // Composite: Pilot (MK + TR + IC + AI)
                         $pilot_categories = ['MK', 'TR', 'IC', 'AI'];
-                        $full_afoqt_scores['Pilot'] = calculate_composite_score($pilot_categories, $cat_scores, $data["oc_afoqt_pred_score_array"]);
+                        $full_afoqt_scores['Pilot'] = calculate_composite_score($pilot_categories, $cat_scores, $afoqt_score_array);
 
                         // Composite: CSO (WK + MK + TR + BC)
                         $cso_categories = ['WK', 'MK', 'TR', 'BC'];
-                        $full_afoqt_scores['CSO'] = calculate_composite_score($cso_categories, $cat_scores, $data["oc_afoqt_pred_score_array"]);
+                        $full_afoqt_scores['CSO'] = calculate_composite_score($cso_categories, $cat_scores, $afoqt_score_array);
 
                         // Composite: ABM (VA + MK + TR + IC + BC + AI)
                         $abm_categories = ['VA', 'MK', 'TR', 'IC', 'BC', 'AI'];
-                        $full_afoqt_scores['ABM'] = calculate_composite_score($abm_categories, $cat_scores, $data["oc_afoqt_pred_score_array"]);
+                        $full_afoqt_scores['ABM'] = calculate_composite_score($abm_categories, $cat_scores, $afoqt_score_array);
 
                         // Composite: Academic Aptitude (VA + AR + WK + MK + RC)
                         $academic_categories = ['VA', 'AR', 'WK', 'MK', 'RC'];
-                        $full_afoqt_scores['Academic Aptitude'] = calculate_composite_score($academic_categories, $cat_scores, $data["oc_afoqt_pred_score_array"]);
+                        $full_afoqt_scores['Academic Aptitude'] = calculate_composite_score($academic_categories, $cat_scores, $afoqt_score_array);
 
                         // Composite: Verbal (VA + WK + RC)
                         $verbal_categories = ['VA', 'WK', 'RC'];
-                        $full_afoqt_scores['Verbal'] = calculate_composite_score($verbal_categories, $cat_scores, $data["oc_afoqt_pred_score_array"]);
+                        $full_afoqt_scores['Verbal'] = calculate_composite_score($verbal_categories, $cat_scores, $afoqt_score_array);
 
                         // Composite: Quantitative (AR + MK)
                         $quant_categories = ['AR', 'MK'];
-                        $full_afoqt_scores['Quantitative'] = calculate_composite_score($quant_categories, $cat_scores, $data["oc_afoqt_pred_score_array"]);
+                        $full_afoqt_scores['Quantitative'] = calculate_composite_score($quant_categories, $cat_scores, $afoqt_score_array);
 
                         // Full AFOQT score
-                        $pre_score = round(($total_correct_ans / $total_questions) * 100);
-                        $full_afoqt_scores['AFOQT'] = $data["oc_afoqt_pred_score_array"][$pre_score];
+                        $pre_score = ($total_questions > 0) ? round(($total_correct_ans / $total_questions) * 100) : 0;
+                        $full_afoqt_scores['AFOQT'] = afoqtLookupPercentile($afoqt_score_array, $pre_score);
                         $final_pred_score = $full_afoqt_scores['AFOQT'];
                     } else {
-                        $pre_score = round(($total_correct_ans / $total_questions) * 100);
-                        $final_pred_score = $data["oc_afoqt_pred_score_array"][$pre_score];
+                        $pre_score = ($total_questions > 0) ? round(($total_correct_ans / $total_questions) * 100) : 0;
+                        $final_pred_score = afoqtLookupPercentile($afoqt_score_array, $pre_score);
                     }
                 } else if (in_array($test_id, [21, 25, 26])) {
 
@@ -2422,14 +2493,22 @@ if ($_POST['action']) {
                     }
                 } else if ($test_id == 24 && $_POST['pred_test_id'] == 40) { // Full AFOQT Score Result
                     $total_pred_score = 0;
+                    if (!isset($full_afoqt_scores) || !is_array($full_afoqt_scores)) {
+                        $full_afoqt_scores = array();
+                    }
+                    if (!isset($full_afoqt_scores['AFOQT'])) {
+                        $full_afoqt_scores['AFOQT'] = 0;
+                    }
 
-                    $reslt_id =  insertTable("result", array("pred_name" => "AFOQT Prediction test", "score" => $full_afoqt_scores['AFOQT'], "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "total_questions" => $total_questions, "correct_answers" => $total_correct_ans, "result_date" => date("Y-m-d")));
+                    $reslt_id =  insertTable("result", array("pred_name" => "AFOQT Prediction test", "score" => (int)$full_afoqt_scores['AFOQT'], "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "total_questions" => $total_questions, "correct_answers" => $total_correct_ans, "result_date" => date("Y-m-d")));
 
                     foreach ($full_afoqt_scores as $key => $value) {
+                        if ($key === 'AFOQT') {
+                            continue;
+                        }
+                        $total_pred_score += (int)$value;
 
-                        $total_pred_score += $value;
-
-                        insertTable("result", array("pred_name" => $key, "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "score" => $value, "parent_id" => $reslt_id, "result_date" => date("Y-m-d")));
+                        insertTable("result", array("pred_name" => $key, "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "score" => (int)$value, "parent_id" => $reslt_id, "result_date" => date("Y-m-d")));
                     }
                 } else {
                     $reslt_id =  insertTable("result", array("user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "score" => $final_pred_score, "result_date" => date("Y-m-d"), "pred_set_id" => $pred_set_id, "total_questions" => $total_questions, "correct_answers" => (int)$total_correct_ans));
@@ -2439,24 +2518,36 @@ if ($_POST['action']) {
                     }
                 }
 
-                $result_ids = getQuery($exam_table, "DISTINCT(result_id)", array("is_result" => 0, 'user_id' => $user_id, "Predic_test_id" => (int)$_POST['pred_test_id'], "pred_set_id" => (int)$pred_set_id));
+                $pending_exam_where = array("is_result" => 0, 'user_id' => $user_id, "Predic_test_id" => (int)$_POST['pred_test_id']);
+                if ($test_id != 24) {
+                    $pending_exam_where["pred_set_id"] = (int)$pred_set_id;
+                }
+
+                $result_ids = queryRowsOrEmpty(getQuery($exam_table, "DISTINCT(result_id)", $pending_exam_where));
 
                 foreach ($result_ids as $id) {
-                    updateTable("result", array('parent_id' => $reslt_id), array('user_id' => $user_id, "result_id" => $id['result_id']));
+                    $child_result_id = queryRowId($id, 'result_id');
+                    if (empty($child_result_id)) {
+                        continue;
+                    }
+                    updateTable("result", array('parent_id' => $reslt_id), array('user_id' => $user_id, "result_id" => $child_result_id));
                 }
 
                 // updateTable("exam", ['is_result' => 1], ['user_id' => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "pred_set_id" => $pred_set_id]);
 
-                $exam_record_list = getQuery($exam_table, "*", array('is_result' => 0, 'user_id' => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "pred_set_id" => (int)$pred_set_id));
+                $exam_record_list = queryRowsOrEmpty(getQuery($exam_table, "*", $pending_exam_where));
 
                 foreach ($exam_record_list as $r) {
+                    if (!is_array($r)) {
+                        continue;
+                    }
                     insertTable($exam_record_table, array("user_id" => $user_id, "Predic_test_id" => $r['Predic_test_id'], "cat_id" => $r['cat_id'], "result_id" => $r['result_id'], "qid" => $r['qid'], "user_ans" => $r['user_ans'], "iscorrect" => $r['iscorrect'], "exam_date" => $r['exam_date'], "is_result" => 1, "pred_set_id" => $r['pred_set_id']));
                 }
 
-                deleteData($exam_table, array('is_result' => 0, 'user_id' => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "pred_set_id" => (int)$pred_set_id));
+                deleteData($exam_table, $pending_exam_where);
 
                 if ($reslt_id) {
-                    $response['result_id'] = $reslt_id;
+                    $response['result_id'] = (int)$reslt_id;
                 }
                 $response['pred_test_id'] = $_POST['pred_test_id'];
 
@@ -2498,6 +2589,7 @@ if ($_POST['action']) {
                 $num_category = (int)getTotalRow("prediction_test_category", array("pred_test_id" => $_POST['pred_test_id']));
 
                 $hub_result_id = null;
+                $hub_row = null;
                 $posted_result_id = isset($_POST['result_id']) ? $_POST['result_id'] : '';
 
                 if ($test_id == 38 || $test_id == 39) {
@@ -2523,9 +2615,13 @@ if ($_POST['action']) {
                     $pred_report = getQuery("result", "*", array("user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "score!" => -1), "result_id desc", 1);
                 }
 
+                $pred_report = queryRowsOrEmpty($pred_report);
                 $response['report'] = [];
 
                 foreach ($pred_report as $p) {
+                    if (!is_array($p) || empty($p['result_id'])) {
+                        continue;
+                    }
 
                     $response['report']['prediction_score'] = array("result_id" => $p['result_id'], "cat_id" => $p['cat_id'], "pred_test_id" => $p['Predic_test_id'], "course_id" => $test_id, "date" => showdate($p['result_date']), "correct" => $p['correct_answers'], "total_questions" => $p['total_questions'], "wrong" => ($p['total_questions'] - $p['correct_answers']), "score" => (int)$p['score']);
 
@@ -2538,13 +2634,19 @@ if ($_POST['action']) {
                     }
                 }
 
-                $pred_cat_list = getQuery("prediction_test_category", "*", array("pred_test_id" => $_POST['pred_test_id']), "", "", "", "id");
+                $pred_cat_list = queryRowsOrEmpty(getQuery("prediction_test_category", "*", array("pred_test_id" => $_POST['pred_test_id']), "", "", "", "id"));
                 $pred_cat_name = [];
                 $total_array = [];
 
                 foreach ($pred_cat_list as $p) {
+                    if (!is_array($p) || empty($p['cat_id'])) {
+                        continue;
+                    }
 
                     $cat = getDataByWhere("category", "*", array("cat_id" => $p['cat_id']));
+                    if (!is_array($cat) || empty($cat['category_name'])) {
+                        continue;
+                    }
                     $cat_id = $p['cat_id'];
                     $cat_name = $cat['category_name'];
                     $total_array[$cat['cat_id']] = $p['number_of_questions'];
@@ -2556,9 +2658,23 @@ if ($_POST['action']) {
                         }
                         $cat_where["parent_id"] = $hub_result_id;
                     }
-                    $pred_report = getQuery("result", "*", $cat_where, "result_id desc", 1);
+                    $cat_rows = queryRowsOrEmpty(getQuery("result", "*", $cat_where, "result_id desc", 1));
+                    if ($test_id == 24 && empty($cat_rows) && !empty($hub_row) && !empty($hub_row['result_date'])) {
+                        unset($cat_where["parent_id"]);
+                        $fallback = firstQueryRow(getQuery("result", "*", $cat_where, "result_id desc", 1));
+                        if ($fallback && !empty($fallback['result_date'])) {
+                            $hub_day = substr((string)$hub_row['result_date'], 0, 10);
+                            $row_day = substr((string)$fallback['result_date'], 0, 10);
+                            if ($hub_day === $row_day) {
+                                $cat_rows = array($fallback);
+                            }
+                        }
+                    }
 
-                    foreach ($pred_report as $r) {
+                    foreach ($cat_rows as $r) {
+                        if (!is_array($r)) {
+                            continue;
+                        }
 
                         $parent_id = $r['parent_id'];
 
@@ -2831,7 +2947,7 @@ if ($_POST['action']) {
                     $response['prediction-test'] = $all_pred_test;
                 } else if ($test_id == 24) {
 
-                    $pred_test_list = getQuery("result", "*", array("user_id" => $user_id, "score!" => -1), "Predic_test_id", "", "", "Predic_test_id");
+                    $pred_test_list = queryRowsOrEmpty(getQuery("result", "*", array("user_id" => $user_id, "score!" => -1), "Predic_test_id", "", "", "Predic_test_id"));
                     $prediction_reports = array();
 
                     foreach ($pred_test_list as $pl) {
@@ -4077,3 +4193,4 @@ if ($_POST['action']) {
     echo json_encode($response);
     die();
 }
+
