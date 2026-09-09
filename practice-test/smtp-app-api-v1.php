@@ -292,6 +292,12 @@ if ($_POST['action']) {
 
                 if ($course_id) {
                     $course_name = getFldValueById("course", "course_name", ["course_id" => $course_id]);
+                    $grade_label = getFldValueById("asvab_course_variants", "label", ["main_course_id" => $course_id]);
+                    if (empty($grade_label)) {
+                        $grade_label = "";
+                    }
+                } else {
+                    $grade_label = "";
                 }
 
                 if ($expire_date < date('Y-m-d')) {
@@ -308,6 +314,7 @@ if ($_POST['action']) {
                     "email" => $d['email'],
                     "mobile" => $d['mobile'],
                     "course_id" => $course_id,
+                    "grade_label" => $grade_label,
                     "isUserSubscribed" => $d['paid']
                 ];
                 $response["status"] = 200;
@@ -600,6 +607,12 @@ if ($_POST['action']) {
 
                 if ($course_id) {
                     $course_name = getFldValueById("course", "course_name", array("course_id" => $course_id));
+                    $grade_label = getFldValueById("asvab_course_variants", "label", array("main_course_id" => $course_id));
+                    if (empty($grade_label)) {
+                        $grade_label = "";
+                    }
+                } else {
+                    $grade_label = "";
                 }
 
                 if ($expire_date < date('Y-m-d')) {
@@ -622,6 +635,7 @@ if ($_POST['action']) {
                     "email" => $d['email'],
                     "mobile" => $d['mobile'],
                     "course_id" => $course_id,
+                    "grade_label" => $grade_label,
                     "isUserSubscribed" => $d['paid']
                 );
                 $response["status"] = 200;
