@@ -3444,15 +3444,6 @@ if ($_POST['action']) {
                 break;
             }
 
-            if ($incoming_course_id <= 0 || $session_id <= 0) {
-                $response = [
-                    "status"    => 400,
-                    "isSuccess" => false,
-                    "message"   => "Course and package are required."
-                ];
-                break;
-            }
-
             // Basic email validation
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $response = [
@@ -3464,19 +3455,50 @@ if ($_POST['action']) {
             }
 
             // -------------------------
-            // 2) Map UI course_id -> internal course_id (course_id_mapping)
+            // 2) Purchased vs free-registration
+            // Both IDs > 0 = claim an existing purchase.
+            // Omit or 0 = free account (no course/session/package).
+            // Never require a course/package on the free path.
             // -------------------------
-            $course_id = mapAsvabCourseIdToMain($incoming_course_id, true, $is_variant);
+            $has_purchase = ($incoming_course_id > 0 && $session_id > 0);
 
-            if ($course_id == 0) {
-                $response = [
-                    "status"    => 400,
-                    "isSuccess" => false,
-                    "error"     => "course_id",
-                    "message"   => "Invalid course_id.",
-                ];
-                break;
+            if ($has_purchase) {
+                // Already purchased: map + validate as before
+                $course_id = mapAsvabCourseIdToMain($incoming_course_id, true, $is_variant);
+
+                if ($course_id == 0) {
+                    $response = [
+                        "status"    => 400,
+                        "isSuccess" => false,
+                        "error"     => "course_id",
+                        "message"   => "Invalid course_id.",
+                    ];
+                    break;
+                }
+
+                $package_id = 62;
+
+                $session_price = getFldValueById("asvab_tutor_package_sessions", "price", ["session_id" => $session_id]);
+                if ($session_price === '' || $session_price === null) {
+                    $response = [
+                        "status"    => 400,
+                        "isSuccess" => false,
+                        "message"   => "Invalid package selected."
+                    ];
+                    break;
+                }
+
+                $test_name = getFldValueById("course", "course_name", ["course_id" => $course_id]);
+            } else {
+                // Did not purchase: all IDs zero
+                $course_id  = 0;
+                $session_id = 0;
+                $package_id = 0;
             }
+
+            $amount   = 0;
+            $currency = "usd";
+            $user_name = $first_name . " " . $last_name;
 
             // -------------------------
             // 3) Prevent duplicate email
@@ -3500,39 +3522,13 @@ if ($_POST['action']) {
             $formatted_date      = $now->format('Y-m-d');
             $formatted_date_time = $now->format('Y-m-d H:i:s');
 
-            // Free access validity (same as your old logic): 4 months ≈ 120 days
+            // Free access validity: 4 months ≈ 120 days
             $month = 4;
             $days  = $month * 30;
 
             $expire = new DateTime('now', $timezone);
             $expire->modify('+' . $days . ' days');
             $expire_date = $expire->format('Y-m-d');
-
-            // -------------------------
-            // 5) Read package/session info safely
-            // -------------------------
-            // Keep your default package_id (as you used previously)
-            $package_id = 62;
-
-            // For free registration, we store amount = 0 (or you can keep session price if you want)
-            // Recommended: 0 to avoid mixing with paid flows.
-            $amount   = 0;
-            $currency = "usd";
-
-            // Optional: validate session exists
-            $session_price = getFldValueById("asvab_tutor_package_sessions", "price", ["session_id" => $session_id]);
-            if ($session_price === '' || $session_price === null) {
-                $response = [
-                    "status"    => 400,
-                    "isSuccess" => false,
-                    "message"   => "Invalid package selected."
-                ];
-                break;
-            }
-
-            // Course name for email/payment display (no payment insert, but still useful)
-            $test_name = getFldValueById("course", "course_name", ["course_id" => $course_id]);
-            $user_name = $first_name . " " . $last_name;
 
             // -------------------------
             // 6) Insert user + login + subscription (transaction if available)
