@@ -39,6 +39,9 @@ if (!$_GET['set_id']) {
 if (!$_GET['pred_cat_id']) {
     $_GET['pred_cat_id'] = $_POST['pred_cat_id'];
 }
+if (!$_GET['flashcard_cat_id']) {
+    $_GET['flashcard_cat_id'] = $_POST['flashcard_cat_id'];
+}
 
 if ($_POST) {
     $_REQUEST = $_POST;
@@ -47,6 +50,7 @@ if ($_POST) {
 $data['cat_id'] = $_GET['cat_id'];
 $data['lesson_id'] = $_GET['lesson_id'];
 $data['course_id'] = $_GET['course_id'];
+$data['flashcard_cat_id'] = $_GET['flashcard_cat_id'];
 
 $data['course'] = getQuery("course", "*");
 
@@ -309,11 +313,12 @@ if (isset($_POST['save_button'])) {
                 'course_id' => $course_id
             );
             $newQuestionId = insertTable("predic_questions", $newQuestionData);
-        } else {
+        } else { // flashcard question insertion
             $newQuestionData = array(
                 'qid' => $questionId,
                 'cat_id' => (int)$targetCategoryId,
-                'course_id' => $targetCourse
+                'course_id' => $targetCourse,
+                'flashcard_cat_id' => (int)$_GET['flashcard_cat_id']
             );
             $newQuestionId = insertTable("lesson_questions", $newQuestionData);
         }
@@ -329,11 +334,11 @@ if (isset($_POST['save_button'])) {
     } else if ($_GET['pred_cat_id']) {
         header("location:pred_questions_list?predic_test_id=" . $_GET['predic_test_id'] . "&set_id=" . $_GET['set_id'] . "&pred_cat_id=" . $_GET['pred_cat_id']);
     } else {
-        header("location:questions_list?cat_id=" . $_GET['cat_id'] . "&course_id=" . $_GET['course_id']);
+        header("location:questions_list?cat_id=" . $_GET['cat_id'] . "&course_id=" . $_GET['course_id'] . "&flashcard_cat_id=" . $_GET['flashcard_cat_id']);
     }
 }
-
 //  ************ End Insert Questions ***********     
+
 if ($_GET['pred_cat_id']) {
     $data['pred_test_name'] = getFldValueById("predic_test", "test_name", array("predic_test_id" => $_GET['predic_test_id']));
     $data['set_name'] = getFldValueById("predic_question_set", "set_name", array("set_id" => $_GET['set_id']));
@@ -341,11 +346,15 @@ if ($_GET['pred_cat_id']) {
     $data['cat_name'] = getFldValueById("category", "category_name", array("cat_id" => $cat_id));
 
     $data['page_title'] = "Prediction Test: " . $data['pred_test_name'] . " > Set Name: " . $data['set_name'] . " > Category Name: " . $data['cat_name'] . " > " . strtoupper($_GET['add_to']);
+} else if ($_GET['flashcard_cat_id']) {
+    $data['flashcard_cat_name'] = getFldValueById("category", "category_name", array("cat_id" => $_GET['flashcard_cat_id']));
+
+    $data['page_title'] = "Course: " . $data['course_name'] . " > Category: " . $data['cat_name'] . " > " . $data['flashcard_cat_name'] . " > " . strtoupper($_GET['add_to']);
 } else {
     $data['page_title'] = "Course: " . $data['course_name'] . " > Category: " . $data['cat_name'] . " > Lesson: " . $data['lesson_name'] . " > " . strtoupper($_GET['add_to']);
 }
 $data['breadcrumb'] = array(
-    "Lesson Question List" => "https://staging-test-prep.asvab-tutoring.com/practice-test/admincp/questions_list?lesson_id=" . $_GET['lesson_id'] . "&cat_id=" . $_GET['cat_id'] . "&course_id=" . $_GET['course_id'],
+    "Lesson Question List" => "https://staging-test-prep.asvab-tutoring.com/practice-test/admincp/questions_list?lesson_id=" . $_GET['lesson_id'] . "&cat_id=" . $_GET['cat_id'] . "&course_id=" . $_GET['course_id'] . "&flashcard_cat_id=" . $_GET['flashcard_cat_id'],
     " Total Questions: " . $data['total'] => ""
 );
 

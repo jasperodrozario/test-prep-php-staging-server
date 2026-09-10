@@ -8,6 +8,7 @@
             <input type='hidden' name="predic_test_id" value="<?= $_GET['predic_test_id']; ?>">
             <input type='hidden' name="set_id" value="<?= $_GET['set_id']; ?>">
             <input type='hidden' name="pred_cat_id" value="<?= $_GET['pred_cat_id']; ?>">
+            <input type='hidden' name="flashcard_cat_id" value="<?= $_GET['flashcard_cat_id']; ?>">
 
             <!-- <table class='table table-bordered table-striped'>
 			    <tr>
@@ -103,12 +104,18 @@
                 $add_to = "Practice Test";
             } elseif ($_GET['add_to'] == "HW") {
                 $add_to = "Homework";
-            } 
+            } elseif ($_GET['add_to'] == "flashcards") {
+                $add_to = "Flashcards";
+            }
         ?>
             <div class="info-block">
                 <div><b>Course: </b> <?php echo $course_name ?></div>
                 <div><b>Category: </b> <?php echo $cat_name ?></div>
-                <div><b>Lesson: </b> <?php echo $lesson_name ?> <b>(<?= $add_to; ?>)</b></div>
+                <?php if ($flashcard_cat_name) { ?>
+                    <div><b>Flashcard Category: </b> <?php echo $flashcard_cat_name ?> <b>(<?= $add_to; ?>)</b></div>
+                <?php } else { ?>
+                    <div><b>Lesson: </b> <?php echo $lesson_name ?> <b>(<?= $add_to; ?>)</b></div>
+                <?php } ?>
             </div>
         <?
         } else {
@@ -130,6 +137,7 @@
             <input type='hidden' name="predic_test_id" value="<?= $_GET['predic_test_id']; ?>">
             <input type='hidden' name="set_id" value="<?= $_GET['set_id']; ?>">
             <input type='hidden' name="pred_cat_id" value="<?= $_GET['pred_cat_id']; ?>">
+            <input type='hidden' name="flashcard_cat_id" value="<?= $_GET['flashcard_cat_id']; ?>">
 
             <input style="float: right; width: 20%; margin-bottom: 10px; margin-left:5px; height: 34px;" type='submit' value='Add Questions in Lesson' name='save_button' class='btn btn-success'>
 
@@ -324,7 +332,7 @@
 
         <?
         if ($total > 100) {
-            echo "<ul class='pagination'>" . paging($total, 100, "course_id=" . $_GET['course_id'] . "&cat_id=" . $_GET['cat_id'] . "&lesson_id=" . $_GET['lesson_id'] . "&add_to=" . $_GET['add_to'] . "&cat_id_drop=" . $category . "&search_id=" . $search_id . "&search=" . $search_phrage . "&question_tag=" . $ques_type . "&subject=" . $subject . "&chapter=" . $chapter . "&topic=" . $topic) . "</ul>";
+            echo "<ul class='pagination'>" . paging($total, 100, "course_id=" . $_GET['course_id'] . "&cat_id=" . $_GET['cat_id'] . "&lesson_id=" . $_GET['lesson_id'] . "&flashcard_cat_id=" . $_GET['flashcard_cat_id'] . "&add_to=" . $_GET['add_to'] . "&cat_id_drop=" . $category . "&search_id=" . $search_id . "&search=" . $search_phrage . "&question_tag=" . $ques_type . "&subject=" . $subject . "&chapter=" . $chapter . "&topic=" . $topic) . "</ul>";
         }
 
         ?>

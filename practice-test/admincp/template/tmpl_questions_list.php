@@ -77,6 +77,7 @@ if ($page_error) {
                 <input type='hidden' name="lesson_id" value="<?= htmlspecialchars($_GET['lesson_id'] ?? '') ?>">
                 <input type='hidden' name="cat_id" value="<?= htmlspecialchars($_GET['cat_id'] ?? '') ?>">
                 <input type='hidden' name="course_id" value="<?= htmlspecialchars($_GET['course_id'] ?? '') ?>">
+                <input type='hidden' name="flashcard_cat_id" value="<?= htmlspecialchars($_GET['flashcard_cat_id'] ?? '') ?>">
 
                 <table class='table table-bordered table-striped'>
                     <tr>
@@ -141,16 +142,17 @@ if ($page_error) {
                 <form method="post" id="hw_form" action='<?= basename($_SERVER['PHP_SELF'], ".php"); ?>' enctype="multipart/form-data">
                     <input type='hidden' name="cat_id" value="<?= $_GET['cat_id']; ?>">
                     <input type='hidden' name="course_id" value="<?= $_GET['course_id']; ?>">
+                    <input type='hidden' name="flashcard_cat_id" value="<?= $_GET['flashcard_cat_id']; ?>">
 
                     <div class="row">
                         <div class="col-md-6">
-                            <h3>Flashcards Questions</h3>
+                            <h3>Flashcards Questions<?= $flashcard_cat_name ? ": " . $flashcard_cat_name : ""; ?></h3>
                         </div>
                         <div class="col-md-3 text-right">
                             <input type='submit' value='Remove Multiple Questions' name='remove_cat' class='btn btn-primary'>
                         </div>
                         <div class="col-md-2">
-                            <button type="button" class="btn btn-primary" onclick="window.location.href='add_lesson_questions?cat_id=<?= $_GET['cat_id']; ?>&course_id=<?= $_GET['course_id']; ?>&add_to=flashcards'">Add Questions In Flashcards</button>
+                            <button type="button" class="btn btn-primary" onclick="window.location.href='add_lesson_questions?cat_id=<?= $_GET['cat_id']; ?>&course_id=<?= $_GET['course_id']; ?>&flashcard_cat_id=<?= $_GET['flashcard_cat_id']; ?>&add_to=flashcards'">Add Questions In Flashcards</button>
                         </div>
                     </div>
 
@@ -206,7 +208,7 @@ if ($page_error) {
                                     <a href='add_questions?cat_id=" . $f['cat_id'] . "&qid=" . $f['qid'] . "&limit=" . $_GET['limit'] . "'>Edit</a> &nbsp;
 
                                     <i class='fa fa-trash'></i> 							
-                                    <a href='#' onClick=\"if(confirm('Are you sure to delete?')){window.location='?cat_id=" . $_GET['cat_id'] . "&course_id=" . $_GET['course_id'] . "&del_id=" . $f['id'] . "';}\" >Delete</a> &nbsp;
+                                    <a href='#' onClick=\"if(confirm('Are you sure to delete?')){window.location='?cat_id=" . $_GET['cat_id'] . "&course_id=" . $_GET['course_id'] . "&flashcard_cat_id=" . $_GET['flashcard_cat_id'] . "&del_id=" . $f['id'] . "';}\" >Delete</a> &nbsp;
 
                                 </td>
                             </tr>";
@@ -216,20 +218,7 @@ if ($page_error) {
                                 <td colspan=10>" . html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $f['question']))) . "</td>
                             </tr>";
 
-                                    for ($i = 1; $i <= $option_no; $i++) {
-                                        $ans = $alphabet[$i];
-                                        $ind = 'option_' . strtolower($ans);
-                                        if ($f[$ind]) {
-                                            if ($f['answer'] == $i) {
-                                                $ans = '<span class="badge badge-success">' . $alphabet[$i] . '</a>';
-                                            }
-                                            echo "
-                                    <tr>
-                                        <td width=5>" . $ans . "</td>
-                                        <td class='text-align:left' colspan=7>" . html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $f[$ind]))) . "</td>
-                                    </tr>";
-                                        }
-                                    }
+                                    // Flashcards show only the question and its explanation, never the options
 
                                     echo "
                             <tr style='background:#f5f5f5'>

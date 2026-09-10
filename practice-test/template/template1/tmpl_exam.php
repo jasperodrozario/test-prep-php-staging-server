@@ -956,68 +956,508 @@
 
 								case "flashcards": {
 									?>
-										<script type="text/javascript" src="//code.jquery.com/jquery-1.6.4.js"></script>
-										<div id="big-image" class="new-qs-slider">
-											<?php
-											if ($total) {
-												$i = 1;
-												foreach ($questions as $f) {
-											?>
+										<style>
+											/* ===== Flashcard palette =====
+											   Navy = structure/headings, blue = primary accent - matches the
+											   side menu's link color (#337ab7 / #286090). */
+											.flashcard-wrap {
+												--fc-navy: #0d2b4e;
+												--fc-navy-soft: #3a5878;
+												--fc-gold: #337ab7;
+												--fc-gold-dark: #286090;
+												--fc-bg: #f6f7fb;
+												--fc-border: #e7e9ee;
+												--fc-text: #1f2933;
+												--fc-muted: #667085;
+												width: 100%;
+												max-width: 780px;
+												margin: 0 auto;
+											}
+
+											/* Toolbar: position in the deck, and a jump-to-card control */
+											.flashcard-toolbar {
+												display: flex;
+												align-items: center;
+												justify-content: space-between;
+												flex-wrap: wrap;
+												gap: 12px;
+												padding: 0 4px 18px;
+											}
+											.flashcard-count {
+												display: inline-flex;
+												align-items: center;
+												gap: 8px;
+												padding: 7px 14px;
+												background: #eaf2fa;
+												border: 1px solid #bcdcf4;
+												border-radius: 999px;
+												font-family: "Maven Pro", sans-serif;
+												font-size: 14px;
+												font-weight: 600;
+												color: var(--fc-navy);
+											}
+											.flashcard-count i {
+												color: var(--fc-gold-dark);
+											}
+											.flashcard-count span {
+												color: var(--fc-gold-dark);
+											}
+											.flashcard-jump {
+												display: flex;
+												align-items: center;
+												gap: 8px;
+											}
+											.flashcard-jump label {
+												margin: 0;
+												font-family: "Maven Pro", sans-serif;
+												font-size: 13px;
+												font-weight: 500;
+												color: var(--fc-muted);
+											}
+											.flashcard-jump select {
+												width: auto;
+												min-width: 74px;
+												height: 36px;
+												padding: 4px 10px;
+												border: 1px solid #d7dbe3;
+												border-radius: 8px;
+												background: #fff;
+												color: var(--fc-text);
+												font-size: 14px;
+												cursor: pointer;
+												transition: border-color .15s ease, box-shadow .15s ease;
+											}
+											.flashcard-jump select:hover {
+												border-color: var(--fc-gold-dark);
+											}
+											.flashcard-jump select:focus {
+												outline: none;
+												border-color: var(--fc-gold-dark);
+												box-shadow: 0 0 0 3px rgba(51, 122, 183, 0.25);
+											}
+
+											/* Deck frame */
+											.flashcard-slider .flashcard,
+											.flashcard-slider .flashcard .flashcard-box {
+												min-height: 0;
+											}
+											.flashcard-slider .flashcard-box {
+												padding: 4px 4px 30px;
+											}
+											/* A theme-wide mobile rule (".slick-initialized .row") forces every
+											   slide's row to "width: auto" and "display: inherit", which fights
+											   slick's own slide sizing and is the usual cause of cards stacking on
+											   top of each other on small screens. Out-specificity it here so our
+											   slide always fills its slick-slide the way slick expects - and zero
+											   out Bootstrap's .row -15px gutter margins, since this row isn't
+											   nested in a padded column to cancel them out (they were clipping the
+											   card's left edge against the slider's overflow:hidden). */
+											.flashcard-slider .row.flashcard {
+												display: block !important;
+												width: 100% !important;
+												margin-left: 0 !important;
+												margin-right: 0 !important;
+											}
+
+											/* Base card */
+											.flashcard-card {
+												width: 100%;
+												max-width: 100%;
+												margin: 0 auto 18px;
+												padding: 26px 30px;
+												background: #fff;
+												border: 1px solid var(--fc-border);
+												border-radius: 16px;
+												box-shadow: 0 4px 18px rgba(13, 43, 78, 0.06);
+											}
+
+											/* Question card - the visual anchor of the deck. A clean, raised
+											   white card with a gold top edge for brand accent. */
+											.flashcard-question-card {
+												display: flex;
+												flex-direction: column;
+												align-items: center;
+												justify-content: center;
+												gap: 10px;
+												min-height: 130px;
+												padding: 28px 32px;
+												background: #fff;
+												border: 1px solid var(--fc-border);
+												border-top: 4px solid var(--fc-gold);
+												box-shadow: 0 6px 20px rgba(13, 43, 78, 0.1);
+											}
+											.flashcard-eyebrow {
+												font-family: "Maven Pro", sans-serif;
+												font-size: 12px;
+												font-weight: 700;
+												letter-spacing: 1.5px;
+												text-transform: uppercase;
+												color: var(--fc-gold-dark);
+											}
+											.flashcard-question {
+												width: 100%;
+												text-align: center;
+												font-size: 18px;
+												line-height: 1.65;
+												color: var(--fc-text);
+											}
+											/* Question/answer/explanation arrive as rich HTML from the CMS editor,
+											   whose paragraphs/lists often carry their own inline alignment - force
+											   everything inside these blocks to stay centered regardless. */
+											.flashcard-question,
+											.flashcard-question * {
+												text-align: center !important;
+											}
+
+											/* Question/answer/explanation text arrives as rich HTML, so drop the
+											   leading and trailing <p> margins that pad the card out. */
+											.flashcard-question > *:first-child,
+											.flashcard-answer > *:first-child,
+											.flashcard-explanation-body > *:first-child {
+												margin-top: 0;
+											}
+											.flashcard-question > *:last-child,
+											.flashcard-answer > *:last-child,
+											.flashcard-explanation-body > *:last-child {
+												margin-bottom: 0;
+											}
+
+											/* Answer + Explanation live together in one card */
+											.flashcard-answer-card {
+												border-color: var(--fc-border);
+												border-left: 4px solid var(--fc-gold-dark);
+											}
+											.flashcard-card-label {
+												display: flex;
+												align-items: center;
+												justify-content: center;
+												gap: 7px;
+												margin-bottom: 10px;
+												font-family: "Maven Pro", sans-serif;
+												font-size: 13px;
+												font-weight: 700;
+												letter-spacing: 0.6px;
+												text-transform: uppercase;
+											}
+											.flashcard-label-answer {
+												color: var(--fc-gold-dark);
+											}
+											.flashcard-label-explanation {
+												color: var(--fc-navy-soft);
+											}
+											.flashcard-answer {
+												text-align: center;
+												font-size: 17px;
+												font-weight: 600;
+												line-height: 1.65;
+												color: var(--fc-text);
+											}
+											.flashcard-answer,
+											.flashcard-answer * {
+												text-align: center !important;
+											}
+											.flashcard-divider {
+												margin: 20px 0;
+												border: 0;
+												border-top: 1px dashed var(--fc-border);
+											}
+											.flashcard-explanation-box {
+												padding: 16px 18px;
+												background: var(--fc-bg);
+												border-radius: 12px;
+											}
+											.flashcard-explanation-body {
+												text-align: center;
+												line-height: 1.7;
+												color: var(--fc-muted);
+												font-size: 15px;
+											}
+											.flashcard-explanation-body,
+											.flashcard-explanation-body * {
+												text-align: center !important;
+											}
+
+											/* Answer stays collapsed until "See Answer" is clicked */
+											.flashcard-reveal {
+												display: none;
+											}
+											.flashcard-reveal.is-open {
+												display: block;
+												animation: flashcardReveal .25s ease;
+											}
+											@keyframes flashcardReveal {
+												from { opacity: 0; transform: translateY(-6px); }
+												to { opacity: 1; transform: translateY(0); }
+											}
+
+											/* Controls: previous / see-answer / next */
+											.flashcard-nav {
+												display: flex;
+												align-items: center;
+												justify-content: center;
+												gap: 16px;
+												width: 100%;
+												margin: 0 auto 20px;
+											}
+											.flashcard-slider .slick-prev,
+											.flashcard-slider .slick-next {
+												position: static !important;
+												top: auto !important;
+												right: auto !important;
+												bottom: auto !important;
+												left: auto !important;
+												width: 44px !important;
+												height: 44px !important;
+												margin: 0 !important;
+												padding: 0;
+												display: inline-flex;
+												align-items: center;
+												justify-content: center;
+												background: #fff !important;
+												border: 1.5px solid var(--fc-border);
+												border-radius: 50%;
+												color: var(--fc-navy);
+												font-size: 15px;
+												line-height: 1;
+												cursor: pointer;
+												transition: background .15s ease, border-color .15s ease, transform .1s ease;
+												-webkit-transform: none;
+												-ms-transform: none;
+												transform: none;
+											}
+											.flashcard-slider .slick-prev:hover,
+											.flashcard-slider .slick-prev:focus,
+											.flashcard-slider .slick-next:hover,
+											.flashcard-slider .slick-next:focus {
+												background: var(--fc-gold) !important;
+												border-color: var(--fc-gold);
+												color: #fff;
+												outline: none;
+											}
+											.flashcard-slider .slick-prev:active,
+											.flashcard-slider .slick-next:active {
+												transform: scale(0.94);
+											}
+											.flashcard-slider .slick-prev.slick-disabled,
+											.flashcard-slider .slick-next.slick-disabled {
+												opacity: 0.4;
+												cursor: not-allowed;
+												pointer-events: none;
+											}
+											.flashcard-slider .slick-prev i,
+											.flashcard-slider .slick-next i {
+												color: inherit;
+												font-size: 18px;
+												line-height: 1;
+											}
+
+											.flashcard-slider .flashcard-btn-view-ans {
+												position: static !important;
+												top: auto !important;
+												display: inline-flex !important;
+												align-items: center;
+												gap: 8px;
+												margin: 0 !important;
+												padding: 11px 26px;
+												background: linear-gradient(135deg, var(--fc-gold) 0%, var(--fc-gold-dark) 100%) !important;
+												border: none;
+												border-radius: 999px;
+												color: #fff !important;
+												font-family: "Maven Pro", sans-serif;
+												font-size: 15px;
+												font-weight: 700;
+												box-shadow: 0 4px 14px rgba(40, 96, 144, 0.35);
+												transition: transform .12s ease, box-shadow .12s ease;
+											}
+											.flashcard-slider .flashcard-btn-view-ans:hover,
+											.flashcard-slider .flashcard-btn-view-ans:focus {
+												color: #fff !important;
+												transform: translateY(-1px);
+												box-shadow: 0 6px 18px rgba(40, 96, 144, 0.45);
+												text-decoration: none;
+											}
+											.flashcard-slider .flashcard-btn-view-ans:active {
+												transform: translateY(0);
+											}
+
+											@media (max-width: 767px) {
+												.flashcard-slider .flashcard-box {
+													padding: 4px 10px 24px;
+												}
+												.flashcard-toolbar {
+													flex-direction: column;
+													align-items: center;
+													gap: 10px;
+												}
+												.flashcard-card {
+													padding: 20px 18px;
+												}
+												.flashcard-question-card {
+													min-height: 100px;
+													padding: 22px 20px;
+												}
+												.flashcard-eyebrow {
+													font-size: 11px;
+												}
+												.flashcard-question {
+													font-size: 16px;
+												}
+												.flashcard-answer {
+													font-size: 16px;
+												}
+												.flashcard-explanation-box {
+													padding: 14px 15px;
+												}
+												.flashcard-explanation-body {
+													font-size: 14px;
+												}
+												.flashcard-nav {
+													flex-wrap: wrap;
+													row-gap: 10px;
+													gap: 10px;
+												}
+												.flashcard-slider .flashcard-btn-view-ans {
+													padding: 10px 18px;
+													font-size: 14px;
+												}
+											}
+
+											/* Extra-small phones: tighten touch targets and spacing further */
+											@media (max-width: 380px) {
+												.flashcard-slider .flashcard-box {
+													padding: 4px 6px 20px;
+												}
+												.flashcard-card {
+													padding: 16px 14px;
+												}
+												.flashcard-question-card {
+													min-height: 90px;
+													padding: 18px 16px;
+												}
+												.flashcard-question {
+													font-size: 15px;
+												}
+												.flashcard-nav {
+													gap: 8px;
+												}
+												.flashcard-slider .slick-prev,
+												.flashcard-slider .slick-next {
+													width: 38px !important;
+													height: 38px !important;
+												}
+												.flashcard-slider .slick-prev i,
+												.flashcard-slider .slick-next i {
+													font-size: 16px;
+												}
+												.flashcard-slider .flashcard-btn-view-ans {
+													padding: 9px 14px;
+													font-size: 13px;
+												}
+											}
+										</style>
+
+										<div class="flashcard-wrap">
+											<?php if ($total) { ?>
+												<div class="flashcard-toolbar">
+													<div class="flashcard-count">
+														<i class="fa fa-clone" aria-hidden="true"></i>
+														<span id="flashcard-current">1</span>/<?= (int)$total ?>
+													</div>
+
+													<div class="flashcard-jump">
+														<label for="flashcard-jump-select"></label>
+														<select id="flashcard-jump-select">
+															<?php for ($n = 1; $n <= (int)$total; $n++) { ?>
+																<option value="<?= $n ?>"><?= $n ?></option>
+															<?php } ?>
+														</select>
+													</div>
+												</div>
+											<?php } ?>
+
+											<div id="big-image" class="new-qs-slider flashcard-slider">
+												<?php
+												if ($total) {
+													$i = 1;
+													foreach ($questions as $f) {
+
+														// A flashcard never shows the options - only the correct answer's
+														// text and the explanation, and each is dropped when empty.
+														$answer_text = "";
+														if ($f['answer'] && $alphabet[$f['answer']]) {
+															$ind = 'option_' . strtolower($alphabet[$f['answer']]);
+															if ($f[$ind]) {
+																$answer_text = html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $f[$ind])));
+															}
+														}
+
+														$explanation_text = "";
+														if ($f['explanation']) {
+															$explanation_text = html_entity_decode(html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $f['explanation']))));
+														}
+												?>
 													<div class="row flashcard">
 														<item>
 															<div class="col-md-12 flashcard-box">
-																<table class="table table-borderless flashcard-table">
-																	<tr>
-																		<td>
-																			<?=
+
+																<div class="flashcard-card flashcard-question-card">
+																	<div class="flashcard-eyebrow">Question</div>
+																	<div class="flashcard-question">
+																		<?=
 																			html_entity_decode(
 																				html_entity_decode(
 																					str_replace("&#92;", "\\", $f['question'])
 																				)
 																			)
-																			?>
-																		</td>
-																	</tr>
-																	<tr>
-																		<td colspan="2">
-																			<div class="col-md-12 view-ans"
-																				style="margin-bottom:20px;margin-left:2px;text-align: center;">
-																				<a class="slick-prev"></a>
+																		?>
+																	</div>
+																</div>
 
-																				<a class="btn btn-info flashcard-btn-view-ans"
-																					href="javascript://"
-																					onClick="showDiv(<?= $i ?>);">See Answer</a>
+																<div class="flashcard-nav view-ans">
+																	<a class="slick-prev flashcard-nav-btn" href="javascript://" aria-label="Previous card"><i class="fa fa-angle-left" aria-hidden="true"></i></a>
 
-																				<a class="slick-next"></a>
-																			</div>
+																	<?php if ($answer_text || $explanation_text) { ?>
+																		<a class="flashcard-btn-view-ans"
+																			id="flashcard-btn-<?= $i ?>"
+																			href="javascript://"
+																			aria-expanded="false"
+																			aria-controls="ansdiv_<?= $i ?>"
+																			onClick="showFlashcardAnswer(<?= $i ?>);"><i class="fa fa-eye" aria-hidden="true"></i> See Answer</a>
+																	<?php } ?>
 
-																			<div class="col-md-12 mtq_explanation flashcard-explanation"
-																				id="ansdiv_<?= $i ?>">
-																				<?php if ($f['explanation']) { ?>
-																					<br>
-																					<?=
-																					html_entity_decode(
-																						html_entity_decode(
-																							html_entity_decode(
-																								str_replace("&#92;", "\\", $f['explanation'])
-																							)
-																						)
-																					)
-																					?>
-																				<?php } ?>
-																				<div class="close-btn"><i class="fa fa-times"></i></div>
-																			</div>
-																		</td>
-																	</tr>
-																</table>
+																	<a class="slick-next flashcard-nav-btn" href="javascript://" aria-label="Next card"><i class="fa fa-angle-right" aria-hidden="true"></i></a>
+																</div>
+
+																<div class="flashcard-reveal" id="ansdiv_<?= $i ?>">
+																	<?php if ($answer_text || $explanation_text) { ?>
+																		<div class="flashcard-card flashcard-answer-card">
+																			<?php if ($answer_text) { ?>
+																				<div class="flashcard-card-label flashcard-label-answer"><i class="fa fa-check-circle" aria-hidden="true"></i> Answer</div>
+																				<div class="flashcard-answer"><?= $answer_text ?></div>
+																			<?php } ?>
+
+																			<?php if ($answer_text && $explanation_text) { ?>
+																				<hr class="flashcard-divider">
+																			<?php } ?>
+
+																			<?php if ($explanation_text) { ?>
+																				<div class="flashcard-card-label flashcard-label-explanation"><i class="fa fa-info-circle" aria-hidden="true"></i> Explanation</div>
+																				<div class="flashcard-explanation-box">
+																					<div class="flashcard-explanation-body"><?= $explanation_text ?></div>
+																				</div>
+																			<?php } ?>
+																		</div>
+																	<?php } ?>
+																</div>
 															</div>
 														</item>
 													</div>
-											<?php
+												<?php
 													$i++;
 												}
 											}
-											?>
+												?>
+											</div>
 										</div>
 									<?php
 									}
@@ -1514,6 +1954,103 @@
 			div.style.display = "none";
 		}
 	}
+
+	// Flashcards reveal the answer/explanation cards in place - no progress is
+	// recorded for them, so this deliberately does not call viewAnswer().
+	function showFlashcardAnswer(x) {
+		var div = document.getElementById("ansdiv_" + x);
+		var btn = document.getElementById("flashcard-btn-" + x);
+
+		if (!div) {
+			return;
+		}
+
+		var open = div.classList.contains("is-open");
+
+		div.classList.toggle("is-open", !open);
+		if (btn) {
+			btn.setAttribute("aria-expanded", open ? "false" : "true");
+			btn.innerHTML = open
+				? '<i class="fa fa-eye" aria-hidden="true"></i> See Answer'
+				: '<i class="fa fa-eye-slash" aria-hidden="true"></i> Hide Answer';
+		}
+
+		// slick caches the slide height, so let it grow with the revealed cards
+		var list = document.querySelector(".flashcard-slider .slick-list");
+		if (list) {
+			list.style.height = "auto";
+		}
+	}
+
+	function collapseFlashcards() {
+		var opened = document.querySelectorAll(".flashcard-reveal.is-open");
+		for (var i = 0; i < opened.length; i++) {
+			opened[i].classList.remove("is-open");
+		}
+
+		var buttons = document.querySelectorAll(".flashcard-btn-view-ans");
+		for (var j = 0; j < buttons.length; j++) {
+			buttons[j].setAttribute("aria-expanded", "false");
+			buttons[j].innerHTML = '<i class="fa fa-eye" aria-hidden="true"></i> See Answer';
+		}
+	}
+
+	// Moving to another card collapses whatever was revealed on the previous one
+	document.addEventListener("click", function(e) {
+		if (!e.target.closest) {
+			return;
+		}
+		if (!e.target.closest(".flashcard-slider .slick-prev, .flashcard-slider .slick-next")) {
+			return;
+		}
+
+		collapseFlashcards();
+	});
+
+	// jQuery and slick load in the footer, so wait for the whole page before
+	// wiring the counter and the jump-to-card select onto the slider.
+	window.addEventListener("load", function() {
+		var slider = document.querySelector(".flashcard-slider");
+		var counter = document.getElementById("flashcard-current");
+		var jump = document.getElementById("flashcard-jump-select");
+
+		if (!slider || !jump || typeof window.jQuery === "undefined") {
+			return;
+		}
+
+		var $slider = window.jQuery(slider);
+		if (!$slider.hasClass("slick-initialized")) {
+			return;
+		}
+
+		// If slick measured the slider while its container was still
+		// settling (webfonts, layout shifts on mobile), slides can end up
+		// stacked on top of each other instead of side by side. Forcing a
+		// recompute once everything is loaded - and again on resize /
+		// orientation change - keeps the slide widths honest.
+		var refreshFlashcardSlider = function() {
+			$slider.slick("setPosition");
+		};
+		refreshFlashcardSlider();
+		window.addEventListener("resize", refreshFlashcardSlider);
+		window.addEventListener("orientationchange", refreshFlashcardSlider);
+
+		// Fires for the arrows and for slickGoTo alike
+		$slider.on("afterChange", function(event, slick, index) {
+			if (counter) {
+				counter.innerHTML = index + 1;
+			}
+			jump.value = index + 1;
+			collapseFlashcards();
+		});
+
+		jump.addEventListener("change", function() {
+			var target = parseInt(jump.value, 10);
+			if (target > 0) {
+				$slider.slick("slickGoTo", target - 1);
+			}
+		});
+	});
 </script>
 
 <script>

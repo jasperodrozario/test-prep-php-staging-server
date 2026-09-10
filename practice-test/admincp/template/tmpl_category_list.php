@@ -79,7 +79,7 @@
                         ?>
                             <td>-</td>
                             <td>-</td>
-                    <?
+                        <?
                         }
                     }
                     ?>
@@ -87,18 +87,40 @@
                         <?php
                         echo "<a  href='category_entryform?course_id=" . $_GET['course_id'] . "&cat_id=" . $d['cat_id'] . "' class='link'><u>Edit</u></a> | ";
 
-                        echo "<a  href=\"javascript:if (confirm('Are you sure you want to delete `" . $d['category_name'] . "`?')){window.location.href='category_list?course_id=" . $_GET['course_id'] . "&del_id=" . $d['cat_id'] . "'}\" class='link'><u>Delete</u></a> | ";
+                        echo "<a  href=\"javascript:if (confirm('Are you sure you want to delete `" . $d['category_name'] . "`?')){window.location.href='category_list?course_id=" . $_GET['course_id'] . "&del_id=" . $d['cat_id'] . "'}\" class='link'><u>Delete</u></a>";
 
                         if ($d['category_name'] == "Flashcards") {
-                            echo "<a  href='questions_list?course_id=" . $_GET['course_id'] . "&cat_id=" . $d['cat_id'] . "' class='link'><u>Add Questions</u></a>";
+                            echo " | <a  href='questions_list?course_id=" . $_GET['course_id'] . "&cat_id=" . $d['cat_id'] . "' class='link'><u>Add Questions</u></a>";
                         } else {
-                            echo "<a  href='lesson_entryform?page=lesson&course_id=" . $_GET['course_id'] . "&cat_id=" . $d['cat_id'] . "' class='link'><u>Add Lesson</u></a>";
+                            echo " | <a  href='lesson_entryform?page=lesson&course_id=" . $_GET['course_id'] . "&cat_id=" . $d['cat_id'] . "' class='link'><u>Add Lesson</u></a>";
                         }
                         ?>
 
                     </td>
                 </tr>
                 <?php
+                if ($d['category_name'] == "Flashcards") {
+                    foreach ($flashcard_cats as $fc) {
+                ?>
+                        <tr>
+                            <td><?php echo $fc['cat_id']; ?>/<?php echo $fc['category_order']; ?></td>
+                            <td><?php echo "<a  href='questions_list?course_id=" . $_GET['course_id'] . "&cat_id=" . $d['cat_id'] . "&flashcard_cat_id=" . $fc['cat_id'] . "'><u>" . $fc['category_name'] . "</u></a>"; ?></td>
+                            <td>-</td>
+                            <td><?php echo $fc['shortcode']; ?></td>
+                            <td>-</td>
+                            <td><?php echo $fc['online']; ?></td>
+                            <td colspan="2"><?php echo (int)$flashcard_totals[$fc['cat_id']]; ?></td>
+                            <td align="center">
+                                <?php
+                                echo "<a  href='questions_list?course_id=" . $_GET['course_id'] . "&cat_id=" . $d['cat_id'] . "&flashcard_cat_id=" . $fc['cat_id'] . "'><u>Add Questions</u></a>";
+                                ?>
+
+                            </td>
+                        </tr>
+                <?php
+                    }
+                }
+
                 if ($total_lessons[$d['cat_id']]) {
                     foreach ($lessons[$d['cat_id']] as $dd) {
                         $hw_total = getTotalRow("lesson_questions", array("lesson_id" => $dd['lesson_id'], "cat_id" => $d['cat_id'], "course_id" => $_GET['course_id'], "HW" => 1));

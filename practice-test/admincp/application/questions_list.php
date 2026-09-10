@@ -18,10 +18,14 @@ if (!$_GET['cat_id']) {
 if (!$_GET['course_id']) {
     $_GET['course_id'] = $_POST['course_id'];
 }
+if (!$_GET['flashcard_cat_id']) {
+    $_GET['flashcard_cat_id'] = $_POST['flashcard_cat_id'];
+}
 
 $data['lesson_id'] = $_GET['lesson_id'];
 $data['cat_id'] = $_GET['cat_id'];
 $data['course_id'] = $_GET['course_id'];
+$data['flashcard_cat_id'] = $_GET['flashcard_cat_id'];
 
 if ($_POST) {
     $_REQUEST = $_POST;
@@ -357,6 +361,10 @@ if (!$data['lesson_name'] &&  $_GET['lesson_id']) {
 
     // Determine category type
     if ($data['cat_name'] == "Flashcards") {
+        if ($_GET['flashcard_cat_id']) {
+            $conditions["l.flashcard_cat_id"] = (int)$_GET['flashcard_cat_id'];
+        }
+
         $data['db_list'] = getQueryByJoin(
             ["question as q", "lesson_questions as l"],
             "q.*, l.order_no, l.id",
@@ -397,7 +405,11 @@ if (!$data['lesson_name'] &&  $_GET['lesson_id']) {
     }
 }
 
-$data['page_title'] = "Course: " . $data['course_name'] . " > Category: " . $data['cat_name'] . " > Lesson: " . $data['lesson_name'];
+if ($_GET['flashcard_cat_id']) {
+    $data['flashcard_cat_name'] = getFldValueById("category", "category_name", array("cat_id" => $_GET['flashcard_cat_id']));
+}
+
+$data['page_title'] = "Course: " . $data['course_name'] . " > Category: " . $data['cat_name'] . ($data['flashcard_cat_name'] ? " > " . $data['flashcard_cat_name'] : "") . " > Lesson: " . $data['lesson_name'];
 $data['breadcrumb'] = array(
     $data['course_name'] => $configs['vpath'] . "admincp/category_list?course_id=" . $_GET['course_id'], 
      " " .$data['lesson_name'] => "", " > ". $data['total']." questions"  => ""
