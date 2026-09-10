@@ -9,6 +9,7 @@ include("configs/config.php");
 include("configs/common.php");
 include("configs/license.php");
 include("configs/array.php");
+include("configs/lesson_playlist.php");
 include("smtpmail.php");
 
 function getExamTables($test_id)
@@ -1157,6 +1158,16 @@ if ($_POST['action']) {
                 $response['error'] = "Token does not exist!";
             }
             $response['list'] = $list;
+
+            break;
+
+        case "get-lesson-playlist":
+
+            $playlist_response = handleGetLessonPlaylistRequest(isset($_POST['authorizationToken']) ? $_POST['authorizationToken'] : '');
+            if (isset($playlist_response['error'])) {
+                $response['error'] = $playlist_response['error'];
+            }
+            $response['videos'] = $playlist_response['videos'];
 
             break;
 

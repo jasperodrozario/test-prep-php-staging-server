@@ -112,6 +112,7 @@ if ($_GET['home_limit']) {
 
 $configs['facebook']="https://www.facebook.com/asvabtutoring";
 $configs['youtube']="https://www.youtube.com/@asvabtutoring5963";
+$configs['youtube_api_key'] = getenv('YOUTUBE_DATA_API_KEY') ?: 'AIzaSyCZz1R3Gfs_-oIWbvQ2uuwYPDhAw9stz44';
 $configs['x_url']		="https://x.com/asvabtutoring18";
 $configs['instagram']="https://www.instagram.com/asvabtutoring/";
 $configs['tiktok']="https://www.tiktok.com/@asvab_tutoring";
