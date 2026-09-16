@@ -141,6 +141,77 @@ if (!function_exists('mapMainCourseIdToAsvab')) {
 }
 
 /**
+ * Convert a stored/session course_id (MAIN or asvab, ambiguous) into the
+ * identity /api/payment expects: website asvab id + is_variant=0, or
+ * grade MAIN + is_variant=1.
+ *
+ * Session/package rows may use either id space. Parent asvab ids that
+ * require a grade (e.g. State Math 60) are not payable on their own.
+ */
+if (!function_exists('resolvePayableCourseIdentity')) {
+    function resolvePayableCourseIdentity($course_id)
+    {
+        $id = (int)$course_id;
+        if ($id <= 0) {
+            return [
+                "ok"              => false,
+                "course_id"       => 0,
+                "is_variant"      => 0,
+                "main_course_id"  => 0,
+                "asvab_course_id" => 0,
+            ];
+        }
+
+        $is_variant = (int)getFldValueById(
+            "asvab_course_variants",
+            "main_course_id",
+            ["main_course_id" => $id, "is_active" => 1]
+        ) > 0 ? 1 : 0;
+
+        if ($is_variant) {
+            $parent = (int)mapMainCourseIdToAsvab($id, 1);
+            return [
+                "ok"              => $parent > 0,
+                "course_id"       => $id,
+                "is_variant"      => 1,
+                "main_course_id"  => $id,
+                "asvab_course_id" => $parent,
+            ];
+        }
+
+        $asvab = (int)mapMainCourseIdToAsvab($id, 0);
+        if ($asvab > 0) {
+            return [
+                "ok"              => true,
+                "course_id"       => $asvab,
+                "is_variant"      => 0,
+                "main_course_id"  => $id,
+                "asvab_course_id" => $asvab,
+            ];
+        }
+
+        $main = (int)mapAsvabCourseIdToMain($id, true, 0);
+        if ($main > 0) {
+            return [
+                "ok"              => true,
+                "course_id"       => $id,
+                "is_variant"      => 0,
+                "main_course_id"  => $main,
+                "asvab_course_id" => $id,
+            ];
+        }
+
+        return [
+            "ok"              => false,
+            "course_id"       => $id,
+            "is_variant"      => 0,
+            "main_course_id"  => 0,
+            "asvab_course_id" => $id,
+        ];
+    }
+}
+
+/**
  * Resolve registration course_id from POST, else asvab_tutor_package.course_id.
  * Never uses asvab_tutor_package_sessions.course_id (ambiguous id space).
  * Session row may supply package_id only.
@@ -252,6 +323,104 @@ if (!function_exists('getAsvabCourseVariants')) {
         }
 
         return $variants;
+    }
+}
+
+/**
+ * Categories + questions for one portal course.course_id.
+ * Used by both free-practice and free-prediction cases, and once per grade
+ * on variant parents, so it stays shared instead of being copied into each case.
+ *
+ * $mode "practice"   -> category.free_test / free_test_questions
+ * $mode "prediction" -> category.free_pred_test / pred_free_test_questions
+ * $allowed_subjects  -> lowercase shortcode/name allowlist, or null for all
+ */
+if (!function_exists('buildFreeTestPayload')) {
+    function buildFreeTestPayload($course_id, $mode, $uploadBase, $allowed_subjects = null)
+    {
+        $course_id = (int)$course_id;
+
+        $payload = array(
+            "course_id" => $course_id,
+            "categories" => array(),
+            "questions" => array(),
+        );
+
+        if ($course_id <= 0) {
+            return $payload;
+        }
+
+        $is_prediction = ($mode === "prediction");
+        $cat_flag = $is_prediction ? "free_pred_test" : "free_test";
+        $ques_table = $is_prediction ? "pred_free_test_questions" : "free_test_questions";
+        $ques_limit_field = $is_prediction ? "num_free_pred_test_ques" : "num_free_test_ques";
+
+        $cat_list = getQuery("category", "*", array("course_id" => $course_id, $cat_flag => 1), "category_order");
+        $story_cache = array();
+
+        foreach ($cat_list as $i) {
+            if (is_array($allowed_subjects)) {
+                $shortcode = strtolower(trim((string)($i['shortcode'] ?? '')));
+                $name = strtolower(trim((string)($i['category_name'] ?? '')));
+                if (!in_array($shortcode, $allowed_subjects, true) && !in_array($name, $allowed_subjects, true)) {
+                    continue;
+                }
+            }
+
+            $payload['categories'][] = array(
+                'name' => $i['category_name'],
+                'description' => !empty($i['description'])
+                    ? html_entity_decode($i['description'])
+                    : '',
+            );
+            $payload['questions'][$i['category_name']] = array();
+
+            $temp_ques_list = getQueryByJoin(
+                array("question as q", $ques_table . " as l"),
+                "q.*, l.*",
+                array("l.course_id" => $course_id, "l.cat_id" => $i['cat_id']),
+                array("q.qid" => "l.qid"),
+                "",
+                $i[$ques_limit_field]
+            );
+
+            $qcnt = 1;
+            foreach ($temp_ques_list as $q) {
+                $q['q_no'] = $qcnt;
+
+                $story_id = isset($q['story_id']) ? (int)$q['story_id'] : 0;
+                if ($story_id > 0) {
+                    if (!array_key_exists($story_id, $story_cache)) {
+                        $story_row = getDataByWhere("story", "*", array("story_id" => $story_id));
+                        if ($story_row) {
+                            $story_html = html_entity_decode(html_entity_decode(html_entity_decode($story_row['story'] ?? '')));
+                            $story_html = str_replace('"/uploads/', '"' . $uploadBase, $story_html);
+                            $story_html = str_replace("'/uploads/", "'" . $uploadBase, $story_html);
+                            $story_html = str_replace('src="/uploads/', 'src="' . $uploadBase, $story_html);
+                            $story_html = str_replace("src='/uploads/", "src='" . $uploadBase, $story_html);
+                            $story_html = str_replace('href="/uploads/', 'href="' . $uploadBase, $story_html);
+
+                            $story_cache[$story_id] = array(
+                                'story_title' => $story_row['story_title'] ?? '',
+                                'story' => $story_html,
+                            );
+                        } else {
+                            $story_cache[$story_id] = null;
+                        }
+                    }
+
+                    if (!empty($story_cache[$story_id])) {
+                        $q['story'] = $story_cache[$story_id]['story'];
+                        $q['story_title'] = $story_cache[$story_id]['story_title'];
+                    }
+                }
+
+                $payload['questions'][$i['category_name']][] = $q;
+                $qcnt++;
+            }
+        }
+
+        return $payload;
     }
 }
 
@@ -1944,88 +2113,69 @@ if ($_POST['action']) {
 
                 if ($exist) {
                     $course_data = getDataByWhere("asvab_course", "*", array("course_code" => $course_code));
-
-                    $course_name = $course_data['course_name_test_prep'];
-                    if ($course_name == "ASVAB") {
-                        $course_id = 27;
-                    } else {
-                        $course_id = (int)getFldValueById("course", "course_id", array("course_name" => $course_name));
-                    }
-
-                    $cat_list = getQuery("category", "*", array("course_id" => $course_id, "free_test" => 1), "category_order");
-
-                    $free_test_cat_list = array();
-                    $free_test_ques_list = array();
-                    $story_cache = array();
                     $uploadBase = rtrim($configs['vpath'], '/') . '/uploads/';
+                    $variants = getAsvabCourseVariants((int)$course_data['course_id']);
 
-                    foreach ($cat_list as $i) {
-                        $free_test_cat_list[] = array(
-                            'name' => $i['category_name'],
-                            'description' => !empty($i['description'])
-                                ? html_entity_decode($i['description'])
-                                : '',
-                        );
-                        $free_test_ques_list[$i['category_name']] = array();
-
-                        $temp_ques_list = getQueryByJoin(
-                            array("question as q", "free_test_questions as l"),
-                            "q.*, l.*",
-                            array("l.course_id" => $course_id, "l.cat_id" => $i['cat_id']),
-                            array("q.qid" => "l.qid"),
-                            "",
-                            $i['num_free_test_ques']
-                        );
-
-                        $qcnt = 1;
-                        foreach ($temp_ques_list as $q) {
-                            $q['q_no'] = $qcnt;
-
-                            $story_id = isset($q['story_id']) ? (int)$q['story_id'] : 0;
-                            if ($story_id > 0) {
-                                if (!array_key_exists($story_id, $story_cache)) {
-                                    $story_row = getDataByWhere("story", "*", array("story_id" => $story_id));
-                                    if ($story_row) {
-                                        $story_html = html_entity_decode(html_entity_decode(html_entity_decode($story_row['story'] ?? '')));
-                                        $story_html = str_replace('"/uploads/', '"' . $uploadBase, $story_html);
-                                        $story_html = str_replace("'/uploads/", "'" . $uploadBase, $story_html);
-                                        $story_html = str_replace('src="/uploads/', 'src="' . $uploadBase, $story_html);
-                                        $story_html = str_replace("src='/uploads/", "src='" . $uploadBase, $story_html);
-                                        $story_html = str_replace('href="/uploads/', 'href="' . $uploadBase, $story_html);
-
-                                        $story_cache[$story_id] = array(
-                                            'story_title' => $story_row['story_title'] ?? '',
-                                            'story' => $story_html,
-                                        );
-                                    } else {
-                                        $story_cache[$story_id] = null;
-                                    }
-                                }
-
-                                if (!empty($story_cache[$story_id])) {
-                                    $q['story'] = $story_cache[$story_id]['story'];
-                                    $q['story_title'] = $story_cache[$story_id]['story_title'];
-                                }
-                            }
-
-                            $free_test_ques_list[$i['category_name']][] = $q;
-                            $qcnt++;
+                    if (count($variants) > 0) {
+                        // State Math Test Prep grades also have ELA; this parent
+                        // only sells math, so drop every other subject here.
+                        $allowed_subjects = null;
+                        if (strtolower(trim((string)$course_data['course_code'])) === "state-math-test-prep") {
+                            $allowed_subjects = array("math", "mathematics");
                         }
-                    }
 
-                    $response = [
-                        "status"     => 200,
-                        "isSuccess"  => true,
-                        "message"    => "Free practice test fetched successfully.",
-                        "course_name" => $course_data['name'],
-                        "course_code" => $course_data['course_code'],
-                        "full_form"  => $course_data['full_form'],
-                        "data"       => [
-                            "course_id"  => $course_id,
-                            "categories" => $free_test_cat_list,
-                            "questions"  => $free_test_ques_list,
-                        ],
-                    ];
+                        $variant_payloads = array();
+                        $primary_data = null;
+                        foreach ($variants as $variant) {
+                            $variant_data = buildFreeTestPayload(
+                                (int)$variant['main_course_id'],
+                                "practice",
+                                $uploadBase,
+                                $allowed_subjects
+                            );
+                            $variant_payloads[] = array(
+                                "main_course_id" => (int)$variant['main_course_id'],
+                                "course_name" => $variant['course_name'],
+                                "data" => $variant_data,
+                            );
+                            if ($primary_data === null && !empty($variant_data['categories'])) {
+                                $primary_data = $variant_data;
+                            }
+                        }
+
+                        $response = [
+                            "status"       => 200,
+                            "isSuccess"    => true,
+                            "message"      => "Free practice test fetched successfully.",
+                            "course_name"  => $course_data['name'],
+                            "course_code"  => $course_data['course_code'],
+                            "full_form"    => $course_data['full_form'],
+                            "has_variants" => 1,
+                            "variants"     => $variant_payloads,
+                            "data"         => $primary_data
+                                ? $primary_data
+                                : buildFreeTestPayload(0, "practice", $uploadBase),
+                        ];
+                    } else {
+                        $course_name = $course_data['course_name_test_prep'];
+                        if ($course_name == "ASVAB") {
+                            $course_id = 27;
+                        } else {
+                            $course_id = (int)getFldValueById("course", "course_id", array("course_name" => $course_name));
+                        }
+
+                        $response = [
+                            "status"       => 200,
+                            "isSuccess"    => true,
+                            "message"      => "Free practice test fetched successfully.",
+                            "course_name"  => $course_data['name'],
+                            "course_code"  => $course_data['course_code'],
+                            "full_form"    => $course_data['full_form'],
+                            "has_variants" => 0,
+                            "variants"     => [],
+                            "data"         => buildFreeTestPayload($course_id, "practice", $uploadBase),
+                        ];
+                    }
                 } else {
                     $response = [
                         "status"     => 404,
@@ -2051,88 +2201,67 @@ if ($_POST['action']) {
 
                 if ($exist) {
                     $course_data = getDataByWhere("asvab_course", "*", array("course_code" => $course_code));
-
-                    $course_name = $course_data['course_name_test_prep'];
-                    if ($course_name == "ASVAB") {
-                        $course_id = 27;
-                    } else {
-                        $course_id = (int)getFldValueById("course", "course_id", array("course_name" => $course_name));
-                    }
-
-                    $cat_list = getQuery("category", "*", array("course_id" => $course_id, "free_pred_test" => 1), "category_order");
-
-                    $free_test_cat_list = array();
-                    $free_test_ques_list = array();
-                    $story_cache = array();
                     $uploadBase = rtrim($configs['vpath'], '/') . '/uploads/';
+                    $variants = getAsvabCourseVariants((int)$course_data['course_id']);
 
-                    foreach ($cat_list as $i) {
-                        $free_test_cat_list[] = array(
-                            'name' => $i['category_name'],
-                            'description' => !empty($i['description'])
-                                ? html_entity_decode($i['description'])
-                                : '',
-                        );
-                        $free_test_ques_list[$i['category_name']] = array();
-
-                        $temp_ques_list = getQueryByJoin(
-                            array("question as q", "pred_free_test_questions as l"),
-                            "q.*, l.*",
-                            array("l.course_id" => $course_id, "l.cat_id" => $i['cat_id']),
-                            array("q.qid" => "l.qid"),
-                            "",
-                            $i['num_free_pred_test_ques']
-                        );
-
-                        $qcnt = 1;
-                        foreach ($temp_ques_list as $q) {
-                            $q['q_no'] = $qcnt;
-
-                            $story_id = isset($q['story_id']) ? (int)$q['story_id'] : 0;
-                            if ($story_id > 0) {
-                                if (!array_key_exists($story_id, $story_cache)) {
-                                    $story_row = getDataByWhere("story", "*", array("story_id" => $story_id));
-                                    if ($story_row) {
-                                        $story_html = html_entity_decode(html_entity_decode(html_entity_decode($story_row['story'] ?? '')));
-                                        $story_html = str_replace('"/uploads/', '"' . $uploadBase, $story_html);
-                                        $story_html = str_replace("'/uploads/", "'" . $uploadBase, $story_html);
-                                        $story_html = str_replace('src="/uploads/', 'src="' . $uploadBase, $story_html);
-                                        $story_html = str_replace("src='/uploads/", "src='" . $uploadBase, $story_html);
-                                        $story_html = str_replace('href="/uploads/', 'href="' . $uploadBase, $story_html);
-
-                                        $story_cache[$story_id] = array(
-                                            'story_title' => $story_row['story_title'] ?? '',
-                                            'story' => $story_html,
-                                        );
-                                    } else {
-                                        $story_cache[$story_id] = null;
-                                    }
-                                }
-
-                                if (!empty($story_cache[$story_id])) {
-                                    $q['story'] = $story_cache[$story_id]['story'];
-                                    $q['story_title'] = $story_cache[$story_id]['story_title'];
-                                }
-                            }
-
-                            $free_test_ques_list[$i['category_name']][] = $q;
-                            $qcnt++;
+                    if (count($variants) > 0) {
+                        $allowed_subjects = null;
+                        if (strtolower(trim((string)$course_data['course_code'])) === "state-math-test-prep") {
+                            $allowed_subjects = array("math", "mathematics");
                         }
-                    }
 
-                    $response = [
-                        "status"     => 200,
-                        "isSuccess"  => true,
-                        "message"    => "Free practice test fetched successfully.",
-                        "course_name" => $course_data['name'],
-                        "course_code" => $course_data['course_code'],
-                        "full_form"  => $course_data['full_form'],
-                        "data"       => [
-                            "course_id"  => $course_id,
-                            "categories" => $free_test_cat_list,
-                            "questions"  => $free_test_ques_list,
-                        ],
-                    ];
+                        $variant_payloads = array();
+                        $primary_data = null;
+                        foreach ($variants as $variant) {
+                            $variant_data = buildFreeTestPayload(
+                                (int)$variant['main_course_id'],
+                                "prediction",
+                                $uploadBase,
+                                $allowed_subjects
+                            );
+                            $variant_payloads[] = array(
+                                "main_course_id" => (int)$variant['main_course_id'],
+                                "course_name" => $variant['course_name'],
+                                "data" => $variant_data,
+                            );
+                            if ($primary_data === null && !empty($variant_data['categories'])) {
+                                $primary_data = $variant_data;
+                            }
+                        }
+
+                        $response = [
+                            "status"       => 200,
+                            "isSuccess"    => true,
+                            "message"      => "Free practice test fetched successfully.",
+                            "course_name"  => $course_data['name'],
+                            "course_code"  => $course_data['course_code'],
+                            "full_form"    => $course_data['full_form'],
+                            "has_variants" => 1,
+                            "variants"     => $variant_payloads,
+                            "data"         => $primary_data
+                                ? $primary_data
+                                : buildFreeTestPayload(0, "prediction", $uploadBase),
+                        ];
+                    } else {
+                        $course_name = $course_data['course_name_test_prep'];
+                        if ($course_name == "ASVAB") {
+                            $course_id = 27;
+                        } else {
+                            $course_id = (int)getFldValueById("course", "course_id", array("course_name" => $course_name));
+                        }
+
+                        $response = [
+                            "status"       => 200,
+                            "isSuccess"    => true,
+                            "message"      => "Free practice test fetched successfully.",
+                            "course_name"  => $course_data['name'],
+                            "course_code"  => $course_data['course_code'],
+                            "full_form"    => $course_data['full_form'],
+                            "has_variants" => 0,
+                            "variants"     => [],
+                            "data"         => buildFreeTestPayload($course_id, "prediction", $uploadBase),
+                        ];
+                    }
                 } else {
                     $response = [
                         "status"     => 404,
@@ -5515,19 +5644,59 @@ if ($_POST['action']) {
                 $fallback_all_courses = true;
             }
 
-            // if ($course_id === "27") {
-            //     $course_id = "40";
-            // }
+            // Subscription.course_id is portal MAIN. Package session rows may
+            // use MAIN or website/asvab ids. Payment needs website asvab +
+            // is_variant=0, or grade MAIN + is_variant=1 (same as subscribe-again).
+            $stored_main = (int)$course_id;
+            $payment_identity = [
+                "ok"              => false,
+                "course_id"       => 0,
+                "is_variant"      => 0,
+                "main_course_id"  => 0,
+                "asvab_course_id" => 0,
+            ];
+            if (!$fallback_all_courses) {
+                $payment_identity = resolvePayableCourseIdentity($stored_main);
+                if (empty($payment_identity["ok"])) {
+                    $respond(400, false, "Invalid course_id.", ["error" => "course_id"]);
+                }
+            }
 
             $course_name = "";
             if (!$fallback_all_courses) {
-                $c = getDataByWhere("course", "*", ["course_id" => $course_id], 0);
+                $c = getDataByWhere("course", "*", ["course_id" => $stored_main], 0);
                 if (is_array($c)) {
                     $course_name = (string)($c["course_name"] ?? "");
                 }
             }
 
-            // Fetch one-time rows by subscription course, fallback to all courses if no course_id
+            $mergeSessionRows = function (array $batches): array {
+                $seen = [];
+                $out = [];
+                foreach ($batches as $batch) {
+                    if (!is_array($batch)) {
+                        continue;
+                    }
+                    foreach ($batch as $r) {
+                        if (!is_array($r)) {
+                            continue;
+                        }
+                        $sid = trim((string)($r["session_id"] ?? ""));
+                        $key = $sid !== ""
+                            ? $sid
+                            : (string)($r["package_id"] ?? "") . ":" . (string)($r["title"] ?? "") . ":" . (string)($r["course_id"] ?? "");
+                        if (isset($seen[$key])) {
+                            continue;
+                        }
+                        $seen[$key] = true;
+                        $out[] = $r;
+                    }
+                }
+                return $out;
+            };
+
+            // Fetch one-time rows by subscription course (both id spaces),
+            // fallback to all courses if no course_id.
             if ($fallback_all_courses) {
                 $rows = getAllRowsByWhereWithPrefix(
                     "asvab_tutor_package_sessions",
@@ -5537,21 +5706,37 @@ if ($_POST['action']) {
                     "",
                     0
                 );
+                if (!is_array($rows)) {
+                    $rows = [];
+                }
             } else {
-                $rows = getAllRowsByWhereWithPrefix(
-                    "asvab_tutor_package_sessions",
-                    "*",
-                    [
-                        "payment_mode" => "one_time",
-                        "course_id"    => $course_id
-                    ],
-                    "ord ASC",
-                    "",
-                    0
-                );
+                $fetch_ids = [];
+                foreach ([
+                    $stored_main,
+                    (int)$payment_identity["main_course_id"],
+                    (int)$payment_identity["asvab_course_id"],
+                ] as $fid) {
+                    if ($fid > 0 && !in_array($fid, $fetch_ids, true)) {
+                        $fetch_ids[] = $fid;
+                    }
+                }
+                $batches = [];
+                foreach ($fetch_ids as $fid) {
+                    $batch = getAllRowsByWhereWithPrefix(
+                        "asvab_tutor_package_sessions",
+                        "*",
+                        [
+                            "payment_mode" => "one_time",
+                            "course_id"    => $fid
+                        ],
+                        "ord ASC",
+                        "",
+                        0
+                    );
+                    $batches[] = is_array($batch) ? $batch : [];
+                }
+                $rows = $mergeSessionRows($batches);
             }
-
-            if (!is_array($rows)) $rows = [];
 
             $excluded_package_ids = [15, 19, 24, 29, 31];
             $package_details = [];
@@ -5564,9 +5749,20 @@ if ($_POST['action']) {
 
                 // Skip rows with null or empty course_name
                 $course_name_key = trim((string)($r["course_name"] ?? $course_name));
-                $row_course_id = (string)($r["course_id"] ?? $course_id);
                 if ($course_name_key === "") {
                     continue;
+                }
+
+                if ($fallback_all_courses) {
+                    $row_identity = resolvePayableCourseIdentity($r["course_id"] ?? 0);
+                    if (empty($row_identity["ok"])) {
+                        continue;
+                    }
+                    $row_course_id = (string)$row_identity["course_id"];
+                    $row_is_variant = (int)$row_identity["is_variant"];
+                } else {
+                    $row_course_id = (string)$payment_identity["course_id"];
+                    $row_is_variant = (int)$payment_identity["is_variant"];
                 }
 
                 if (!isset($package_details[$course_name_key])) {
@@ -5574,35 +5770,31 @@ if ($_POST['action']) {
                 }
 
                 if ($session_id === "" || is_null($session_id) || empty($session_id)) {
-                    $is_prev_session = $r["course_id"] === $sub["course_id"] && $r["package_id"] === $sub["package_id"];
+                    $is_prev_session = is_array($sub)
+                        && (string)($r["course_id"] ?? "") === (string)($sub["course_id"] ?? "")
+                        && (string)($r["package_id"] ?? "") === (string)($sub["package_id"] ?? "");
                 } else {
                     $is_prev_session = (string)($r["session_id"] ?? "") === $session_id;
                 }
 
-                $package_details[$course_name_key][] = [
+                $pkg = [
                     "package_id"      => (string)($r["package_id"] ?? ""),
                     "session_id"      => (string)($r["session_id"] ?? ""),
                     "course_id"       => (string)$row_course_id,
-                    "course_name"     => (string)($course_name_key),
-                    "title"           => (string)($r["title"] ?? ""),
-                    "price"           => (string)($r["price"] ?? ""),
-                    "feature"         => (string)($r["feature"] ?? ""),
-                    "is_most_popular" => (string)($r["is_most_popular"] ?? "0"),
-                    "prev_session"  => $is_prev_session,
-                ];
-
-                $packages[] = [
-                    "package_id"      => (string)($r["package_id"] ?? ""),
-                    "session_id"      => (string)($r["session_id"] ?? ""),
-                    "course_id"       => (string)$row_course_id,
+                    "is_variant"      => $row_is_variant,
                     "course_name"     => (string)($course_name_key),
                     "title"           => (string)($r["title"] ?? ""),
                     "price"           => (string)($r["price"] ?? ""),
                     "feature"         => (string)($r["feature"] ?? ""),
                     "is_most_popular" => (string)($r["is_most_popular"] ?? "0"),
                     "prev_session"    => $is_prev_session,
-                    "ord"             => (int)($r["ord"] ?? 0),
                 ];
+
+                $package_details[$course_name_key][] = $pkg;
+
+                $packages[] = array_merge($pkg, [
+                    "ord" => (int)($r["ord"] ?? 0),
+                ]);
             }
 
             // Response
@@ -5614,8 +5806,10 @@ if ($_POST['action']) {
                     "email"      => (string)($u["email"] ?? ""),
                 ],
                 "course" => $fallback_all_courses ? null : [
-                    "course_id"   => (string)$course_id,
-                    "course_name" => (string)$course_name,
+                    "course_id"      => (string)$payment_identity["course_id"],
+                    "course_name"    => (string)$course_name,
+                    "is_variant"     => (int)$payment_identity["is_variant"],
+                    "main_course_id" => (string)$payment_identity["main_course_id"],
                 ],
                 "fallback_all_courses" => $fallback_all_courses,
                 "packages" => $packages,
