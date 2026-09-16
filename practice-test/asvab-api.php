@@ -2306,6 +2306,8 @@ if ($_POST['action']) {
                 $pred_test_id = 13;
             } else if ($course_id == 33) { // ATI TEAS
                 $pred_test_id = 31;
+            } else if ($course_id == 60) { // State Math Test Prep
+                $pred_test_id = 53;
             } else {
                 $response = [
                     "message"    => "Prediction Test ID is not recognized. Please pass the correct `pred_test_id` in the api response."
@@ -2369,6 +2371,16 @@ if ($_POST['action']) {
                         $correct_ans_percentage = round(($num_correct_ans / $cat_total_num_of_ques[$cat_index]) * 100);
                         $cat_score = round(20 + $correct_ans_percentage * 0.55);
                         $cat_scores[$cat['shortcode']]['score'] = $cat_score;
+                    } else if ($course_id == 60) { // State Math Test Prep
+                        $correct_ans_percentage = round(($num_correct_ans / $cat_total_num_of_ques[$cat_index]) * 100);
+                        $scaled_to_50 = (int)round(($correct_ans_percentage / 100) * 50);
+                        if ($scaled_to_50 < 0) {
+                            $scaled_to_50 = 0;
+                        } else if ($scaled_to_50 > 50) {
+                            $scaled_to_50 = 50;
+                        }
+                        $cat_score = $data["state_math_test_prep_score_array"][$scaled_to_50];
+                        $cat_scores[$cat['shortcode']]['score'] = $cat_score;
                     } else { // OAR, SIFT, ASTB
                         $correct_ans_percentage = round(($num_correct_ans / $cat_total_num_of_ques[$cat_index]) * 100);
 
@@ -2422,6 +2434,24 @@ if ($_POST['action']) {
                         "status"     => 400,
                         "isSuccess"  => false,
                         "message"    => "Could not compute final prediction score: no categories found."
+                    ];
+                    break;
+                }
+            } else if ($course_id == 60) { // State Math Test Prep
+                if ($total_questions > 0) {
+                    $correct_ans_percentage = round(($total_correct_ans / $total_questions) * 100);
+                    $scaled_to_50 = (int)round(($correct_ans_percentage / 100) * 50);
+                    if ($scaled_to_50 < 0) {
+                        $scaled_to_50 = 0;
+                    } else if ($scaled_to_50 > 50) {
+                        $scaled_to_50 = 50;
+                    }
+                    $final_pred_score = $data["state_math_test_prep_score_array"][$scaled_to_50];
+                } else {
+                    $response = [
+                        "status"     => 400,
+                        "isSuccess"  => false,
+                        "message"    => "Could not compute final prediction score: no questions found."
                     ];
                     break;
                 }
