@@ -10,6 +10,7 @@ include("configs/common.php");
 include("configs/license.php");
 include("configs/array.php");
 include("configs/lesson_playlist.php");
+include("configs/prediction_score_courses.php");
 include("smtpmail.php");
 
 function getExamTables($test_id)
@@ -2132,9 +2133,15 @@ if ($_POST['action']) {
                     $cat = getDataByWhere("category", "*", array("cat_id" => $p['cat_id']));
                     $cat_id = $p['cat_id'];
                     $cat_score = 0;
+                    $num_questions = isset($p['number_of_questions']) ? (int)$p['number_of_questions'] : 0;
                     $num_correct_ans = (int)getTotalRow($exam_table, array("iscorrect" => 1, "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "is_result" => 0));
 
-                    if ($num_correct_ans) {
+                    if (isStateMathCourseId($test_id) || isShsatCourseId($test_id)) {
+                        $correct_ans_percentage = predictionScoreFeedbackPercent($num_correct_ans, $num_questions);
+                        $cat_score = isStateMathCourseId($test_id)
+                            ? scaleStateMathSolScore($correct_ans_percentage)
+                            : scaleShsatSectionScore($correct_ans_percentage);
+                    } else if ($num_correct_ans) {
 
                         if ($test_id == 24) { // AFOQT Score Calculation
 
@@ -2280,6 +2287,11 @@ if ($_POST['action']) {
                     }
                     $full_asvab_scores['Marine GT'] = $marine_gt_score;
                     $final_pred_score = $full_asvab_scores;
+                } else if (isStateMathCourseId($test_id) || isShsatCourseId($test_id)) {
+                    $overall_pct = predictionScoreFeedbackPercent($total_correct_ans, $total_questions);
+                    $final_pred_score = isStateMathCourseId($test_id)
+                        ? scaleStateMathSolScore($overall_pct)
+                        : scaleShsatSectionScore($overall_pct);
                 } else {
 
                     $final_pred_score = round($total_cat_score / $num_category);
@@ -2414,6 +2426,20 @@ if ($_POST['action']) {
                     }
                 }
 
+                if (!empty($response['report']['prediction_score'])) {
+                    $ps = $response['report']['prediction_score'];
+                    $feedback = buildPredictionScoreFeedback(
+                        (int)$test_id,
+                        isset($ps['score']) ? $ps['score'] : null,
+                        array(
+                            'pred_test_id' => isset($ps['pred_test_id']) ? $ps['pred_test_id'] : (isset($_POST['pred_test_id']) ? $_POST['pred_test_id'] : 0),
+                        )
+                    );
+                    if ($feedback !== null) {
+                        $response['report']['score_feedback'] = $feedback;
+                    }
+                }
+
                 $pred_cat_list = getQuery("prediction_test_category", "*", array("pred_test_id" => $_POST['pred_test_id']), "", "", "", "id");
                 $pred_cat_name = [];
                 $total_array = [];
@@ -2510,6 +2536,16 @@ if ($_POST['action']) {
                             "pred_name" => "Quantitative"
                         ])
                     );
+
+                    foreach (predictionScoreAfoqtReportCompositeMap() as $report_key => $composite_name) {
+                        if (!empty($response['report'][$report_key]) && is_array($response['report'][$report_key])) {
+                            predictionScoreAttachFeedback(
+                                $response['report'][$report_key],
+                                $test_id,
+                                array('pred_name' => $composite_name)
+                            );
+                        }
+                    }
                 } else if ($test_id == 28) {
 
                     $ve_report_score = getQuery("result", "*", array("user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "pred_name" => "VE", "score!" => -1), "result_id desc", 1);
@@ -2802,6 +2838,25 @@ if ($_POST['action']) {
                                 ])
                             );
 
+                            if (!empty($all_afoqt_prediction_score['AFOQT Prediction test']['prediction_score'])) {
+                                predictionScoreAttachFeedback(
+                                    $all_afoqt_prediction_score['AFOQT Prediction test']['prediction_score'],
+                                    $test_id,
+                                    array('pred_name' => 'AFOQT Prediction test')
+                                );
+                            }
+                            foreach (predictionScoreAfoqtReportCompositeMap() as $report_key => $composite_name) {
+                                if (!empty($all_afoqt_prediction_score['AFOQT Prediction test'][$report_key])
+                                    && is_array($all_afoqt_prediction_score['AFOQT Prediction test'][$report_key])
+                                ) {
+                                    predictionScoreAttachFeedback(
+                                        $all_afoqt_prediction_score['AFOQT Prediction test'][$report_key],
+                                        $test_id,
+                                        array('pred_name' => $composite_name)
+                                    );
+                                }
+                            }
+
                             $prediction_reports[] = $all_afoqt_prediction_score;
                         } else {
                             $pred_name = getFldValueById("predic_test", "test_name", array("Predic_test_id" => $pl['Predic_test_id']));
@@ -2826,6 +2881,17 @@ if ($_POST['action']) {
                                         "result_date" => $r['result_date'],
                                         "score" => round($r['score'])
                                     );
+                                    $hub_feedback = buildPredictionScoreFeedback(
+                                        (int)$test_id,
+                                        $tmp_report[$pred_name]['score'],
+                                        array(
+                                            'pred_test_id' => $r['Predic_test_id'],
+                                            'pred_name' => $pred_name,
+                                        )
+                                    );
+                                    if ($hub_feedback !== null) {
+                                        $tmp_report[$pred_name]['score_feedback'] = $hub_feedback;
+                                    }
                                     $prediction_reports[] = $tmp_report;
                                     $tmp_report = [];
                                 } else {

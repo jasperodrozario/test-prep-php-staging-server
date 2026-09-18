@@ -10,6 +10,7 @@ include("configs/common.php");
 include("configs/license.php");
 include("configs/array.php");
 include("configs/lesson_playlist.php");
+include("configs/prediction_score_courses.php");
 include("smtpmail.php");
 
 function getExamTables($test_id)
@@ -215,6 +216,8 @@ function formatAfoqtResultObject($r, $test_id, $cat_name = null, $shortcode = nu
         $out['correct'] = $correct;
         $out['wrong'] = (int)$total - $correct;
     }
+    $composite_label = !empty($r['pred_name']) ? $r['pred_name'] : $cat_name;
+    predictionScoreAttachFeedback($out, $test_id, array('pred_name' => $composite_label));
     return $out;
 }
 
@@ -2323,7 +2326,12 @@ if ($_POST['action']) {
                     $num_questions = isset($p['number_of_questions']) ? (int)$p['number_of_questions'] : 0;
                     $num_correct_ans = (int)getTotalRow($exam_table, array("iscorrect" => 1, "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "is_result" => 0));
 
-                    if ($num_correct_ans) {
+                    if (isStateMathCourseId($test_id) || isShsatCourseId($test_id)) {
+                        $correct_ans_percentage = predictionScoreFeedbackPercent($num_correct_ans, $num_questions);
+                        $cat_score = isStateMathCourseId($test_id)
+                            ? scaleStateMathSolScore($correct_ans_percentage)
+                            : scaleShsatSectionScore($correct_ans_percentage);
+                    } else if ($num_correct_ans) {
 
                         if ($test_id == 24) { // AFOQT Score Calculation
 
@@ -2443,6 +2451,11 @@ if ($_POST['action']) {
                     $afqt_score = $data['full_asvab_pred_score_array'][$raw_score];
                     $final_pred_score = $afqt_score;
                     $final_ve_score = $ve_score;
+                } else if (isStateMathCourseId($test_id) || isShsatCourseId($test_id)) {
+                    $overall_pct = predictionScoreFeedbackPercent($total_correct_ans, $total_questions);
+                    $final_pred_score = isStateMathCourseId($test_id)
+                        ? scaleStateMathSolScore($overall_pct)
+                        : scaleShsatSectionScore($overall_pct);
                 } else if ($test_id == 38 || $test_id == 39) { // ASVAB Prep 2025 & ASVAB GT
 
                     $full_asvab_scores = array();
@@ -2647,6 +2660,20 @@ if ($_POST['action']) {
                             $response['report']['prediction_score']['total_questions'],
                             $response['report']['prediction_score']['wrong']
                         );
+                    }
+                }
+
+                if (!empty($response['report']['prediction_score'])) {
+                    $ps = $response['report']['prediction_score'];
+                    $feedback = buildPredictionScoreFeedback(
+                        (int)$test_id,
+                        isset($ps['score']) ? $ps['score'] : null,
+                        array(
+                            'pred_test_id' => isset($ps['pred_test_id']) ? $ps['pred_test_id'] : (isset($_POST['pred_test_id']) ? $_POST['pred_test_id'] : 0),
+                        )
+                    );
+                    if ($feedback !== null) {
+                        $response['report']['score_feedback'] = $feedback;
                     }
                 }
 
@@ -2997,6 +3024,17 @@ if ($_POST['action']) {
                             "applicant_name" => $user_name,
                             "score" => round($hub['score'])
                         );
+                        $hub_feedback = buildPredictionScoreFeedback(
+                            (int)$test_id,
+                            $tmp_report[$pred_name]['score'],
+                            array(
+                                'pred_test_id' => isset($hub['Predic_test_id']) ? $hub['Predic_test_id'] : $pl['Predic_test_id'],
+                                'pred_name' => $pred_name,
+                            )
+                        );
+                        if ($hub_feedback !== null) {
+                            $tmp_report[$pred_name]['score_feedback'] = $hub_feedback;
+                        }
                         $prediction_reports[] = $tmp_report;
                     }
 
@@ -3025,6 +3063,17 @@ if ($_POST['action']) {
                                     "result_date" => $r['result_date'],
                                     "score" => round($r['score'])
                                 );
+                                $hub_feedback = buildPredictionScoreFeedback(
+                                    (int)$test_id,
+                                    $tmp_report[$pred_name]['score'],
+                                    array(
+                                        'pred_test_id' => $r['Predic_test_id'],
+                                        'pred_name' => $pred_name,
+                                    )
+                                );
+                                if ($hub_feedback !== null) {
+                                    $tmp_report[$pred_name]['score_feedback'] = $hub_feedback;
+                                }
                                 $prediction_reports[] = $tmp_report;
                                 $tmp_report = [];
                             } else {
