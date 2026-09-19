@@ -16,10 +16,8 @@
  *   sift             T-score          20–80    excellence 60 / progress 50
  *   astb             academic/OAR     20–80    excellence 60 / progress 50
  *   shsat_section    section scaled   14–400   excellence 280 / progress 250
- *   shsat_composite  composite        200–800  excellence 560 / progress 495
- *   shsat_percent    percent accuracy 0–100    excellence 80 / progress 65
+ *   shsat_composite  composite        200–800  excellence 560 / progress 495  (only if stored score > 400)
  *   sol              Virginia SOL     0–600    excellence 500 / progress 400
- *   sol_legacy       old 20–75 store  20–75    excellence 65 / progress 50
  *   generic          fallback         1–99     excellence 65 / progress 50
  *
  * Course ID → family mapping lives in prediction_score_courses.php.
@@ -205,18 +203,6 @@ function predictionScoreFeedbackCatalog()
                 'focus' => 'You scored {score}. Recent specialized-high-school cutoffs start around 495 composite. Aim for 560+.',
             ),
         ),
-        'shsat_percent' => array(
-            'scale_min' => 0,
-            'scale_max' => 100,
-            'excellence_threshold' => 80,
-            'progress_threshold' => 65,
-            'titles' => $shared_titles,
-            'messages' => array(
-                'excellence' => 'You scored {score}% accuracy. That’s a strong result on this prediction test — keep this level of accuracy before test day.',
-                'progress' => 'You scored {score}% accuracy. You’re making good progress. Aim for 80%+ accuracy.',
-                'focus' => 'You scored {score}% accuracy. Focus on the weaker section and aim for 80%+ accuracy on our platform.',
-            ),
-        ),
         'sol' => array(
             'scale_min' => 0,
             'scale_max' => 600,
@@ -236,18 +222,6 @@ function predictionScoreFeedbackCatalog()
                 'excellence' => 'You scored {score} on the 0–600 SOL scale. That’s Pass Advanced — above the 500 advanced cut. Keep reviewing so this holds on test day.',
                 'progress' => 'You scored {score}. That’s Pass / Proficient (400–499). You’re at grade-level. Aim for 500+ to reach Pass Advanced.',
                 'focus' => 'You scored {score}. Below 400 is Fail on the SOL. 400 is Pass / Proficient; 500 is Pass Advanced. Aim for 500+ on our platform.',
-            ),
-        ),
-        'sol_legacy' => array(
-            'scale_min' => 20,
-            'scale_max' => 75,
-            'excellence_threshold' => 65,
-            'progress_threshold' => 50,
-            'titles' => $shared_titles,
-            'messages' => array(
-                'excellence' => 'You scored {score}. That’s a strong result on this prediction test. Keep reviewing so this holds on test day.',
-                'progress' => 'You scored {score}. You’re making good progress. Keep practicing to reach 65+.',
-                'focus' => 'You scored {score}. Focus on missed topics and aim for 65+ on our platform.',
             ),
         ),
         'generic' => array(

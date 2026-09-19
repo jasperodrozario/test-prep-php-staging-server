@@ -281,19 +281,18 @@ function predictionScoreFeedbackFamily($courseId, $score, $context = array())
         return 'astb';
     }
     if (isShsatCourseId($courseId)) {
+        // Always the official section scale (14–400, 280/250). Score > 400 is
+        // treated as ELA+Math composite (200–800). Do not use the old AFOQT
+        // 20–75 / percent-accuracy fallback.
         if ($score > 400) {
             return 'shsat_composite';
         }
-        if ($score > 80) {
-            return 'shsat_section';
-        }
-        return 'shsat_percent';
+        return 'shsat_section';
     }
     if (isStateMathCourseId($courseId)) {
-        if ($score > 80) {
-            return 'sol';
-        }
-        return 'sol_legacy';
+        // Always official Virginia SOL 0–600 (500 Pass Advanced / 400 Pass).
+        // Do not use the old AFOQT 20–75 fallback.
+        return 'sol';
     }
 
     return 'generic';
