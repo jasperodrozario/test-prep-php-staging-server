@@ -194,7 +194,7 @@
 							<?php
 							} elseif ($_GET['result'] == 'flashcards') {
 							?>
-								<h3>Flashcards</h3>
+								<h3>Flashcards<?= $flashcard_cat_name ? " - " . $flashcard_cat_name : "" ?></h3>
 							<?php
 							} elseif (substr_count($_SERVER['REQUEST_URI'], "progress-report")) {
 							?>
@@ -958,13 +958,13 @@
 									?>
 										<style>
 											/* ===== Flashcard palette =====
-											   Navy = structure/headings, blue = primary accent - matches the
-											   side menu's link color (#337ab7 / #286090). */
+											   Navy = structure/headings, orange/gold = primary accent - matches
+											   the site's navbar color (#ffa031). */
 											.flashcard-wrap {
 												--fc-navy: #0d2b4e;
 												--fc-navy-soft: #3a5878;
-												--fc-gold: #337ab7;
-												--fc-gold-dark: #286090;
+												--fc-gold: #ffa031;
+												--fc-gold-dark: #e6900a;
 												--fc-bg: #f6f7fb;
 												--fc-border: #e7e9ee;
 												--fc-text: #1f2933;
@@ -988,8 +988,8 @@
 												align-items: center;
 												gap: 8px;
 												padding: 7px 14px;
-												background: #eaf2fa;
-												border: 1px solid #bcdcf4;
+												background: #fff4e6;
+												border: 1px solid #ffd9a3;
 												border-radius: 999px;
 												font-family: "Maven Pro", sans-serif;
 												font-size: 14px;
@@ -1033,7 +1033,7 @@
 											.flashcard-jump select:focus {
 												outline: none;
 												border-color: var(--fc-gold-dark);
-												box-shadow: 0 0 0 3px rgba(51, 122, 183, 0.25);
+												box-shadow: 0 0 0 3px rgba(255, 160, 49, 0.25);
 											}
 
 											/* Deck frame */
@@ -1071,8 +1071,11 @@
 												box-shadow: 0 4px 18px rgba(13, 43, 78, 0.06);
 											}
 
-											/* Question card - the visual anchor of the deck. A clean, raised
-											   white card with a gold top edge for brand accent. */
+											/* Question card - the visual anchor of the deck. A clean, evenly
+											   bordered white card raised off the page with a stacked elevation
+											   shadow (tight contact shadow + mid shadow + a wide warm
+											   theme-color glow, plus a top/bottom inset to suggest a bevel)
+											   rather than a single accent-colored edge. */
 											.flashcard-question-card {
 												display: flex;
 												flex-direction: column;
@@ -1081,10 +1084,23 @@
 												gap: 10px;
 												min-height: 130px;
 												padding: 28px 32px;
-												background: #fff;
+												background: linear-gradient(180deg, #ffffff 0%, #fcfbfa 100%);
 												border: 1px solid var(--fc-border);
-												border-top: 4px solid var(--fc-gold);
-												box-shadow: 0 6px 20px rgba(13, 43, 78, 0.1);
+												box-shadow:
+													inset 0 1px 0 rgba(255, 255, 255, 0.95),
+													inset 0 -1px 0 rgba(13, 43, 78, 0.05),
+													0 1px 2px rgba(13, 43, 78, 0.12),
+													0 8px 12px rgba(13, 43, 78, 0.08),
+													0 26px 45px rgba(230, 144, 10, 0.28);
+											}
+											.flashcard-category {
+												margin-bottom: 12px;
+												font-family: "Maven Pro", sans-serif;
+												font-size: 13px;
+												font-weight: 700;
+												letter-spacing: 0.6px;
+												text-transform: uppercase;
+												color: var(--fc-navy);
 											}
 											.flashcard-eyebrow {
 												font-family: "Maven Pro", sans-serif;
@@ -1122,10 +1138,19 @@
 												margin-bottom: 0;
 											}
 
-											/* Answer + Explanation live together in one card */
+											/* Answer + Explanation live together in one card - same stacked
+											   elevation treatment as the question card (slightly lighter, so
+											   the question card still reads as the primary surface), no
+											   single-sided accent edge. */
 											.flashcard-answer-card {
 												border-color: var(--fc-border);
-												border-left: 4px solid var(--fc-gold-dark);
+												background: linear-gradient(180deg, #ffffff 0%, #fcfbfa 100%);
+												box-shadow:
+													inset 0 1px 0 rgba(255, 255, 255, 0.95),
+													inset 0 -1px 0 rgba(13, 43, 78, 0.05),
+													0 1px 2px rgba(13, 43, 78, 0.1),
+													0 6px 10px rgba(13, 43, 78, 0.07),
+													0 20px 36px rgba(230, 144, 10, 0.22);
 											}
 											.flashcard-card-label {
 												display: flex;
@@ -1206,8 +1231,8 @@
 												right: auto !important;
 												bottom: auto !important;
 												left: auto !important;
-												width: 44px !important;
-												height: 44px !important;
+												width: 48px !important;
+												height: 48px !important;
 												margin: 0 !important;
 												padding: 0;
 												display: inline-flex;
@@ -1247,8 +1272,9 @@
 											.flashcard-slider .slick-prev i,
 											.flashcard-slider .slick-next i {
 												color: inherit;
-												font-size: 18px;
+												font-size: 22px;
 												line-height: 1;
+												text-shadow: 0 0 0.5px currentColor, 0 0 0.5px currentColor;
 											}
 
 											.flashcard-slider .flashcard-btn-view-ans {
@@ -1266,14 +1292,14 @@
 												font-family: "Maven Pro", sans-serif;
 												font-size: 15px;
 												font-weight: 700;
-												box-shadow: 0 4px 14px rgba(40, 96, 144, 0.35);
+												box-shadow: 0 4px 14px rgba(230, 144, 10, 0.35);
 												transition: transform .12s ease, box-shadow .12s ease;
 											}
 											.flashcard-slider .flashcard-btn-view-ans:hover,
 											.flashcard-slider .flashcard-btn-view-ans:focus {
 												color: #fff !important;
 												transform: translateY(-1px);
-												box-shadow: 0 6px 18px rgba(40, 96, 144, 0.45);
+												box-shadow: 0 6px 18px rgba(230, 144, 10, 0.45);
 												text-decoration: none;
 											}
 											.flashcard-slider .flashcard-btn-view-ans:active {
@@ -1342,20 +1368,82 @@
 												}
 												.flashcard-slider .slick-prev,
 												.flashcard-slider .slick-next {
-													width: 38px !important;
-													height: 38px !important;
+													width: 42px !important;
+													height: 42px !important;
 												}
 												.flashcard-slider .slick-prev i,
 												.flashcard-slider .slick-next i {
-													font-size: 16px;
+													font-size: 19px;
 												}
 												.flashcard-slider .flashcard-btn-view-ans {
 													padding: 9px 14px;
 													font-size: 13px;
 												}
 											}
+
+											/* Sub-category picker, shown before a deck is chosen */
+											.flashcard-picker-heading {
+												margin: 0 0 20px;
+												text-align: center;
+												font-family: "Maven Pro", sans-serif;
+												font-size: 20px;
+												font-weight: 800;
+												color: var(--fc-navy);
+											}
+											.flashcard-category-grid {
+												display: grid;
+												grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+												gap: 14px;
+											}
+											.flashcard-category-tile {
+												display: flex;
+												flex-direction: column;
+												align-items: center;
+												justify-content: center;
+												gap: 6px;
+												padding: 24px 16px;
+												background: #fff;
+												border: 1px solid var(--fc-border);
+												border-radius: 14px;
+												text-align: center;
+												text-decoration: none;
+												box-shadow: 0 4px 14px rgba(13, 43, 78, 0.08);
+												transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+											}
+											.flashcard-category-tile:hover,
+											.flashcard-category-tile:focus {
+												transform: translateY(-3px);
+												border-color: var(--fc-gold);
+												box-shadow: 0 10px 22px rgba(230, 144, 10, 0.18);
+												text-decoration: none;
+											}
+											.flashcard-category-tile-name {
+												font-family: "Maven Pro", sans-serif;
+												font-weight: 700;
+												font-size: 15px;
+												color: var(--fc-text);
+											}
+											.flashcard-category-tile-count {
+												font-size: 12.5px;
+												font-weight: 600;
+												color: var(--fc-gold-dark);
+												text-transform: uppercase;
+												letter-spacing: 0.4px;
+											}
 										</style>
 
+										<?php if (!empty($flashcard_categories)) { ?>
+											<div class="flashcard-wrap">
+												<div class="flashcard-category-grid">
+													<?php foreach ($flashcard_categories as $fc) { ?>
+														<a class="flashcard-category-tile" href="<?= $configs['vpath'] ?>exam/flashcards-<?= (int)$_GET['flashcard_id'] ?>/<?= $fc['cat_id'] ?>-<?= seo_url($fc['category_name']) ?>">
+															<span class="flashcard-category-tile-name"><?= $fc['category_name'] ?></span>
+															<span class="flashcard-category-tile-count"><?= (int)$fc['total'] ?> Question<?= $fc['total'] == 1 ? '' : 's' ?></span>
+														</a>
+													<?php } ?>
+												</div>
+											</div>
+										<?php } else { ?>
 										<div class="flashcard-wrap">
 											<?php if ($total) { ?>
 												<div class="flashcard-toolbar">
@@ -1395,6 +1483,13 @@
 														if ($f['explanation']) {
 															$explanation_text = html_entity_decode(html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $f['explanation']))));
 														}
+
+														// Which flashcard sub-category this specific question sits
+														// under - can differ per question when the deck isn't
+														// filtered down to a single sub-category.
+														$card_cat_name = $f['flashcard_cat_id']
+															? getFldValueById("category", "category_name", array("cat_id" => $f['flashcard_cat_id']))
+															: $flashcard_cat_name;
 												?>
 													<div class="row flashcard">
 														<item>
@@ -1461,6 +1556,8 @@
 										</div>
 									<?php
 									}
+									} ?>
+									<?php
 									break;
 
 								case "progress-report":

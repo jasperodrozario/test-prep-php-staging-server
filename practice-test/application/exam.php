@@ -554,9 +554,55 @@ switch ($_GET['result']) {
         break;
     case "flashcards":
 
-        $data['total'] = getTotalRowsByJoin(array("question as q", "lesson_questions as l"), array("l.cat_id" => $_GET['flashcard_id'], "l.course_id" => $_SESSION['test_id']), array("q.qid" => "l.qid"));
-        if ($data['total']) {
-            $data['questions'] = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*", array("l.cat_id" => $_GET['flashcard_id'], "l.course_id" => $_SESSION['test_id']), array("q.qid" => "l.qid"), "rand()");
+        $flashcard_cond = array("l.cat_id" => $_GET['flashcard_id'], "l.course_id" => $_SESSION['test_id']);
+
+        if ($_GET['flashcard_cat_id']) {
+            $flashcard_cond["l.flashcard_cat_id"] = (int)$_GET['flashcard_cat_id'];
+            $data['flashcard_cat_name'] = getFldValueById("category", "category_name", array("cat_id" => $_GET['flashcard_cat_id']));
+
+            $data['total'] = getTotalRowsByJoin(array("question as q", "lesson_questions as l"), $flashcard_cond, array("q.qid" => "l.qid"));
+            if ($data['total']) {
+                // Also pull each row's own flashcard_cat_id - a question can
+                // still be re-tagged after the fact, so the category shown
+                // on a card is looked up per question, not assumed from the
+                // filter above.
+                $data['questions'] = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*, l.flashcard_cat_id", $flashcard_cond, array("q.qid" => "l.qid"), "rand()");
+            }
+        } else {
+            // No sub-category picked yet (the navbar/homepage "Flashcards"
+            // link goes straight here with no sub-category). Offer a picker
+            // of the sub-categories that actually have flashcards - same
+            // list the left sidebar builds (tmpl_left_exam.php) - instead of
+            // silently dumping every sub-category's questions into one deck.
+            $data['flashcard_categories'] = array();
+            foreach ($data['cat_list'] as $c) {
+                if ($c['category_name'] == "Flashcards" || $c['category_name'] == "Final Practice Test") {
+                    continue;
+                }
+
+                $fc_total = getTotalRowsByJoin(
+                    array("question as q", "lesson_questions as l"),
+                    array_merge($flashcard_cond, array("l.flashcard_cat_id" => $c['cat_id'])),
+                    array("q.qid" => "l.qid")
+                );
+                if ($fc_total) {
+                    $data['flashcard_categories'][] = array(
+                        "cat_id" => $c['cat_id'],
+                        "category_name" => $c['category_name'],
+                        "total" => $fc_total,
+                    );
+                }
+            }
+
+            if (!$data['flashcard_categories']) {
+                // Nothing tagged with a sub-category at all (flat legacy
+                // deck) - fall back to the old behaviour of showing every
+                // question together, since there's nothing to pick from.
+                $data['total'] = getTotalRowsByJoin(array("question as q", "lesson_questions as l"), $flashcard_cond, array("q.qid" => "l.qid"));
+                if ($data['total']) {
+                    $data['questions'] = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*, l.flashcard_cat_id", $flashcard_cond, array("q.qid" => "l.qid"), "rand()");
+                }
+            }
         }
 
         break;

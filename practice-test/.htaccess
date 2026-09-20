@@ -93,6 +93,8 @@ RewriteRule ^exam/progress-report$      application/exam.php?result=progress-rep
 
 RewriteRule ^exam/([0-9]+)-([a-zA-Z0-9_-]+)$      application/exam.php?id=$1&name=$2&page=category-list
 
+RewriteRule ^exam/flashcards-([0-9]+)/([0-9]+)-([a-zA-Z0-9_-]+)$      application/exam.php?result=flashcards&flashcard_id=$1&flashcard_cat_id=$2&flashcard_cat_name=$3 [L]
+
 RewriteRule ^exam/([a-zA-Z0-9-]+)-([0-9]+)$      application/exam.php?result=$1&flashcard_id=$2
 
 

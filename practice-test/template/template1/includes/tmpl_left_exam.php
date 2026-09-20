@@ -44,7 +44,28 @@
 
 					echo "</ul></li>";
 				} elseif ($c['category_name'] == "Flashcards") {
-					echo "<li class='lectures-feature " . $active . "'><a href='" . $configs['vpath'] . "exam/flashcards-" . $c['cat_id'] . "'> " . $c['category_name'] . "</a></li>";
+					$flashcard_cat_id = $c['cat_id'];
+					$flashcard_sub_cats = array();
+					foreach ($cat_list as $fc) {
+						if ($fc['category_name'] == "Flashcards" || $fc['category_name'] == "Final Practice Test") {
+							continue;
+						}
+						$fc_total = (int)getTotalRow("lesson_questions", array("cat_id" => $flashcard_cat_id, "course_id" => $_SESSION['test_id'], "flashcard_cat_id" => $fc['cat_id']));
+						if ($fc_total) {
+							$flashcard_sub_cats[] = $fc;
+						}
+					}
+
+					if ($flashcard_sub_cats) {
+						echo "<li class='lectures-feature treeview " . $active . "'><a class='dropdown-btn' href='javascript:void(0);'>" . $c['category_name'] . " <i class='fa fa-angle-down'></i></a>";
+						echo "<ul class='dropdown-container treeview-menu'>";
+						foreach ($flashcard_sub_cats as $fc) {
+							echo "<li class='lectures-feature'><a href='" . $configs['vpath'] . "exam/flashcards-" . $flashcard_cat_id . "/" . $fc['cat_id'] . "-" . seo_url($fc['category_name']) . "'> " . $fc['category_name'] . "</a></li>";
+						}
+						echo "</ul></li>";
+					} else {
+						echo "<li class='lectures-feature " . $active . "'><a href='" . $configs['vpath'] . "exam/flashcards-" . $flashcard_cat_id . "'> " . $c['category_name'] . "</a></li>";
+					}
 				} else {
 					echo "<li class='lectures-feature " . $active . "'><a href='" . $configs['vpath'] . "lesson/" . $c['cat_id'] . "-" . seo_url($c['category_name']) . "'> " . $c['category_name'] . "</a></li>";
 				}
