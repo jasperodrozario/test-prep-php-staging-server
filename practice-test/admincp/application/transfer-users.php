@@ -29,9 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['transfer_user'])) {
         // Insert login data
 
         $insert_login = array("user_id" => $new_user_id, "last_login" => $source_login['last_login'], "auth_token"=>$source_login['auth_token']);
-        
+
         insert_table_anotherDB($db_info, "login", $insert_login);
-        
+
         $insert_subscription = array("user_id" => $new_user_id, "course_id" => $source_subsciption['course_id'], "subscription_date"=>$source_subsciption['subscription_date'], "expire_date"=>$source_subsciption['expire_date'], "amount"=>$source_subsciption['amount']);
 
         insert_table_anotherDB($db_info, "subscription", $insert_subscription);
