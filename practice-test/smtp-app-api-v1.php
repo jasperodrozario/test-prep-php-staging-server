@@ -3990,6 +3990,34 @@ if ($_POST['action']) {
 
             break;
 
+        case "get-tutoring-package-details-link":
+            $exist = getTotalRow("login", array("auth_token" => $_POST['authorizationToken']));
+            if ($exist > 0) {
+                $user = getDataByJoin(
+                    array("user as u", "login as l"),
+                    "u.*,l.*",
+                    array("l.auth_token" => $_POST['authorizationToken']),
+                    array("u.user_id" => "l.user_id")
+                );
+
+                $user_id = $user['user_id'];
+                $course_id = getFldValueById("subscription", "course_id", array("user_id" => $user_id));
+                $course_code = getFldValueById("asvab_course", "course_code", array("course_id" => $course_id));
+
+                if ($course_code) {
+                    $link = "https://www.asvab-tutoring.com/package-details/1-on-1-tutoring/" . $course_code;
+                    $response['isSuccess'] = true;
+                    $response['message'] = "Tutoring package details link generated successfully!";
+                    $response['data'] = $link;
+                } else {
+                    $response['isSuccess'] = false;
+                    $response['error'] = "Course code not found for this user! Report this issue to support for a quick fix.".$course_code;
+                }
+            } else {
+                $response['isSuccess'] = false;
+                $response['error'] = "Token does not exist!";
+            }
+            break;
     }
 
     echo json_encode($response);
