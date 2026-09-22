@@ -11,6 +11,7 @@ include("configs/license.php");
 include("configs/array.php");
 include("configs/lesson_playlist.php");
 include("configs/prediction_score_courses.php");
+include("configs/legacy_officers_progress.php");
 include("smtpmail.php");
 
 function getExamTables($test_id)
@@ -3097,6 +3098,10 @@ if ($_POST['action']) {
                     }
 
                     $response['prediction-test'] = $prediction_reports;
+                }
+
+                if (!empty($user['old_user_id'])) {
+                    mergeLegacyOfficersIntoProgressReport($response, $user, (int)$test_id, $user_name);
                 }
             } else {
                 $response['error'] = "Token does not exist!";
