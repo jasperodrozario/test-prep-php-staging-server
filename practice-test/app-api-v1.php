@@ -1822,6 +1822,10 @@ if ($_POST['action']) {
                 $user_id = $user['user_id'];
                 $test_id = getFldValueById("subscription", "course_id", array("user_id" => $user_id));
 
+                if (!empty($user['old_user_id']) && legacyTryPracticeTestResult($response, $user, (int)$test_id)) {
+                    break;
+                }
+
                 // $tables = getExamTables($test_id);
                 // $exam_table = $tables['exam_table'];
                 // $exam_record_table = $tables['exam_record_table'];
@@ -1851,6 +1855,10 @@ if ($_POST['action']) {
                     $response['is_old_user'] = true;
                 } else {
                     $response['is_old_user'] = false;
+                }
+
+                if (!empty($user['old_user_id']) && legacyTryReviewTest($response, $user, (int)$test_id)) {
+                    break;
                 }
 
                 $tables = getExamTables($test_id);
@@ -2610,6 +2618,10 @@ if ($_POST['action']) {
                     $response['is_old_user'] = true;
                 } else {
                     $response['is_old_user'] = false;
+                }
+
+                if (!empty($user['old_user_id']) && legacyTryPredictionTestResult($response, $user, (int)$test_id, $user_name, $is_paid_user)) {
+                    break;
                 }
 
                 $pred_test_data = getDataByWhere("predic_test", "*", array("Predic_test_id" => $_POST['pred_test_id']));
@@ -3872,6 +3884,10 @@ if ($_POST['action']) {
                 $user = getDataByJoin(array("user as u", "login as l"), "u.*,l.*", array("l.auth_token" => $_POST['authorizationToken']), array("u.user_id" => "l.user_id"));
                 $user_id = $user['user_id'];
                 $test_id = getFldValueById("subscription", "course_id", array("user_id" => $user_id));
+
+                if (!empty($user['old_user_id']) && legacyTryReviewPredictionTest($response, $user, (int)$test_id)) {
+                    break;
+                }
 
                 $tables = getExamTables($test_id);
 

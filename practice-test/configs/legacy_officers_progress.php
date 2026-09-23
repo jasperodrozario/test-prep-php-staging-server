@@ -194,6 +194,33 @@ function legacyEncodeResultId($type, $term, $oldCatId, $oldLessonId)
     return -$value;
 }
 
+function legacyDecodeResultId($resultId)
+{
+    if ($resultId === '' || $resultId === null || !is_numeric($resultId)) {
+        return null;
+    }
+    $resultId = (int)$resultId;
+    if ($resultId >= 0) {
+        return null;
+    }
+    $value = -$resultId;
+    $type = intdiv($value, 10000000000);
+    $value = $value % 10000000000;
+    $term = intdiv($value, 10000000);
+    $value = $value % 10000000;
+    $catId = intdiv($value, 10000);
+    $lessonId = $value % 10000;
+    if ($type !== 1 && $type !== 2) {
+        return null;
+    }
+    return array(
+        'type' => $type,
+        'term' => $term,
+        'cat_id' => $catId,
+        'lesson_id' => $lessonId,
+    );
+}
+
 function legacyMapLessonRow($row, $catalog)
 {
     $legacyCatName = trim((string)(isset($row['category']) ? $row['category'] : (isset($row['cat_name']) ? $row['cat_name'] : '')));
@@ -315,5 +342,344 @@ function mergeLegacyOfficersIntoProgressReport(&$response, $user, $courseId, $us
             }
         }
     }
+}
+
+function legacyTryReviewTest(&$response, $user, $courseId)
+{
+    $decoded = legacyDecodeResultId(isset($_POST['result_id']) ? $_POST['result_id'] : '');
+    if (!$decoded || $decoded['type'] !== 1 || empty($user['old_user_id'])) {
+        return false;
+    }
+
+    $detail = legacyOfficersRequest(array(
+        'action' => 'review-test-using-user-id',
+        'user_id' => (int)$user['old_user_id'],
+        'cat_id' => $decoded['cat_id'],
+        'lesson_id' => $decoded['lesson_id'],
+        'term' => $decoded['term'],
+    ));
+    if (empty($detail['report']) || !is_array($detail['report'])) {
+        return false;
+    }
+
+    $report = $detail['report'];
+    $catalog = legacyOfficersCatalog($courseId);
+    $mapped = legacyMapLessonRow(array(
+        'category' => isset($report['cat_name']) ? $report['cat_name'] : '',
+        'cat_id' => $decoded['cat_id'],
+        'lesson_name' => isset($report['lesson_name']) ? $report['lesson_name'] : '',
+        'lesson_id' => $decoded['lesson_id'],
+        'term' => $decoded['term'],
+        'date' => isset($report['date']) ? $report['date'] : '',
+        'correct' => isset($report['correct']) ? $report['correct'] : 0,
+        'total_questions' => isset($report['total_questions']) ? $report['total_questions'] : 0,
+        'wrong' => isset($report['wrong']) ? $report['wrong'] : 0,
+        'score' => isset($report['score']) ? $report['score'] : 0,
+    ), $catalog);
+
+    $response['report'] = array(
+        "result_id" => $mapped['result_id'],
+        "cat_id" => $mapped['cat_id'],
+        "cat_name" => $mapped['cat_name'],
+        "lesson_id" => $mapped['lesson_id'],
+        "lesson_name" => $mapped['lesson_name'],
+        "course_id" => (int)$courseId,
+        "date" => !empty($report['date']) ? showdate($report['date']) : '',
+        "correct" => isset($report['correct']) ? $report['correct'] : 0,
+        "total_questions" => isset($report['total_questions']) ? $report['total_questions'] : 0,
+        "wrong" => isset($report['wrong']) ? $report['wrong'] : 0,
+        "score" => round(isset($report['score']) ? (float)$report['score'] : 0),
+    );
+
+    $qlist = array();
+    if (!empty($detail['qlist']) && is_array($detail['qlist'])) {
+        foreach ($detail['qlist'] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $explanation = isset($item['explanation']) ? $item['explanation'] : '';
+            if (is_string($explanation) && $explanation !== '') {
+                $explanation = html_entity_decode(html_entity_decode(str_replace('&#92;', '\\', $explanation)));
+            }
+            $item['explanation'] = $explanation;
+            $qlist[] = $item;
+        }
+    }
+    $response['qlist'] = $qlist;
+    return true;
+}
+
+function legacyPracticeReportPayload($courseId, $decoded, $report, $roundScore)
+{
+    $catalog = legacyOfficersCatalog($courseId);
+    $mapped = legacyMapLessonRow(array(
+        'category' => isset($report['cat_name']) ? $report['cat_name'] : '',
+        'cat_id' => $decoded['cat_id'],
+        'lesson_name' => isset($report['lesson_name']) ? $report['lesson_name'] : '',
+        'lesson_id' => $decoded['lesson_id'],
+        'term' => $decoded['term'],
+        'date' => isset($report['date']) ? $report['date'] : '',
+        'correct' => isset($report['correct']) ? $report['correct'] : 0,
+        'total_questions' => isset($report['total_questions']) ? $report['total_questions'] : 0,
+        'wrong' => isset($report['wrong']) ? $report['wrong'] : 0,
+        'score' => isset($report['score']) ? $report['score'] : 0,
+    ), $catalog);
+    $score = isset($report['score']) ? (float)$report['score'] : 0;
+
+    return array(
+        "result_id" => $mapped['result_id'],
+        "cat_id" => $mapped['cat_id'],
+        "cat_name" => $mapped['cat_name'],
+        "lesson_id" => $mapped['lesson_id'],
+        "lesson_name" => $mapped['lesson_name'],
+        "course_id" => (int)$courseId,
+        "date" => !empty($report['date']) ? showdate($report['date']) : '',
+        "correct" => isset($report['correct']) ? $report['correct'] : 0,
+        "total_questions" => isset($report['total_questions']) ? $report['total_questions'] : 0,
+        "wrong" => isset($report['wrong']) ? $report['wrong'] : 0,
+        "score" => $roundScore ? round($score) : (int)$score,
+    );
+}
+
+function legacyTryPracticeTestResult(&$response, $user, $courseId)
+{
+    $decoded = legacyDecodeResultId(isset($_POST['result_id']) ? $_POST['result_id'] : '');
+    if (!$decoded || $decoded['type'] !== 1 || empty($user['old_user_id'])) {
+        return false;
+    }
+
+    $detail = legacyOfficersRequest(array(
+        'action' => 'result-using-user-id',
+        'user_id' => (int)$user['old_user_id'],
+        'cat_id' => $decoded['cat_id'],
+        'lesson_id' => $decoded['lesson_id'],
+        'term' => $decoded['term'],
+    ));
+    if (empty($detail['report']) || !is_array($detail['report'])) {
+        return false;
+    }
+
+    $response['report'] = legacyPracticeReportPayload($courseId, $decoded, $detail['report'], false);
+    return true;
+}
+
+function legacyLookupPredictionScore($oldUserId, $oldCatId, $term)
+{
+    $payload = legacyOfficersResults($oldUserId);
+    if (empty($payload['prediction-test']) || !is_array($payload['prediction-test'])) {
+        return 0;
+    }
+    foreach ($payload['prediction-test'] as $row) {
+        if (is_array($row) && (int)$row['cat_id'] === (int)$oldCatId && (int)$row['term'] === (int)$term) {
+            return isset($row['score']) ? $row['score'] : 0;
+        }
+    }
+    foreach ($payload['prediction-test'] as $row) {
+        if (is_array($row) && (int)$row['cat_id'] === (int)$oldCatId) {
+            return isset($row['score']) ? $row['score'] : 0;
+        }
+    }
+    return 0;
+}
+
+function legacyPredictionDetail($user, $decoded)
+{
+    $detail = legacyOfficersRequest(array(
+        'action' => 'view-prediction-result-using-user-id',
+        'user_id' => (int)$user['old_user_id'],
+        'cat_id' => $decoded['cat_id'],
+        'term' => $decoded['term'],
+    ));
+    if (!is_array($detail)) {
+        return null;
+    }
+
+    $score = isset($detail['afqt_score']) ? $detail['afqt_score'] : null;
+    if ($score === null || $score === '') {
+        $score = legacyLookupPredictionScore((int)$user['old_user_id'], $decoded['cat_id'], $decoded['term']);
+    }
+
+    return array(
+        'detail' => $detail,
+        'score' => (int)round((float)$score),
+        'date' => !empty($detail['date']) ? showdate($detail['date']) : '',
+        'result_id' => legacyEncodeResultId(2, $decoded['term'], $decoded['cat_id'], 0),
+        'pred_id' => 0,
+    );
+}
+
+function legacyResolvePostedPredId($catalog, $detail, $decoded)
+{
+    $postedPredId = isset($_POST['pred_test_id']) ? (int)$_POST['pred_test_id'] : 0;
+    if ($postedPredId > 0) {
+        return $postedPredId;
+    }
+    $resolved = legacyResolvePrediction($catalog, array(
+        'category' => isset($detail['cat_name']) ? $detail['cat_name'] : '',
+        'cat_id' => $decoded['cat_id'],
+    ));
+    return $resolved ? (int)$resolved['Predic_test_id'] : 0;
+}
+
+function legacyPredictionTestMeta($predTestId, $isPaidUser)
+{
+    $predTestId = (int)$predTestId;
+    $row = $predTestId > 0 ? getDataByWhere("predic_test", "*", array("Predic_test_id" => $predTestId)) : null;
+    if (!is_array($row) || empty($row['Predic_test_id'])) {
+        return array(
+            "Predic_test_id" => $predTestId,
+            "course_id" => null,
+            "test_name" => "",
+            "test_order" => null,
+            "shortcode" => "",
+            "online" => null,
+            "free" => null,
+            "display_pred_test_review" => $isPaidUser,
+        );
+    }
+    return array(
+        "Predic_test_id" => $row['Predic_test_id'],
+        "course_id" => $row['course_id'],
+        "test_name" => $row['test_name'],
+        "test_order" => $row['test_order'],
+        "shortcode" => $row['shortcode'],
+        "online" => $row['online'],
+        "free" => $row['free'],
+        "display_pred_test_review" => $isPaidUser,
+    );
+}
+
+function legacyPredictionSubjects($catalog, $detail, $courseId, $predId, $resultId, $date)
+{
+    $subjects = array();
+    if (empty($detail['afqt_report']) || !is_array($detail['afqt_report'])) {
+        return $subjects;
+    }
+    foreach ($detail['afqt_report'] as $subject => $subjectScore) {
+        $category = legacyResolveCategory($catalog, $subject);
+        $catName = $category ? $category['category_name'] : trim((string)$subject);
+        if ($catName === '') {
+            continue;
+        }
+        $subjects[$catName] = array(
+            "result_id" => $resultId,
+            "cat_id" => $category ? (int)$category['cat_id'] : 0,
+            "cat_name" => $catName,
+            "shortcode" => $category ? $category['shortcode'] : '',
+            "pred_test_id" => $predId,
+            "course_id" => (int)$courseId,
+            "date" => $date,
+            "correct" => 0,
+            "total_questions" => 0,
+            "wrong" => 0,
+            "score" => (int)round((float)$subjectScore),
+        );
+    }
+    return $subjects;
+}
+
+function legacyTryPredictionTestResult(&$response, $user, $courseId, $userName, $isPaidUser)
+{
+    $decoded = legacyDecodeResultId(isset($_POST['result_id']) ? $_POST['result_id'] : '');
+    if (!$decoded || $decoded['type'] !== 2 || empty($user['old_user_id'])) {
+        return false;
+    }
+
+    $loaded = legacyPredictionDetail($user, $decoded);
+    if ($loaded === null) {
+        return false;
+    }
+
+    $catalog = legacyOfficersCatalog($courseId);
+    $predId = legacyResolvePostedPredId($catalog, $loaded['detail'], $decoded);
+    $response['prediction_test'] = legacyPredictionTestMeta($predId, $isPaidUser);
+
+    $report = array();
+    $report['prediction_score'] = array(
+        "result_id" => $loaded['result_id'],
+        "cat_id" => $predId,
+        "pred_test_id" => $predId,
+        "course_id" => (int)$courseId,
+        "date" => $loaded['date'],
+        "correct" => 0,
+        "total_questions" => 0,
+        "wrong" => 0,
+        "score" => $loaded['score'],
+    );
+    foreach (legacyPredictionSubjects($catalog, $loaded['detail'], $courseId, $predId, $loaded['result_id'], $loaded['date']) as $catName => $subject) {
+        $report[$catName] = $subject;
+    }
+
+    if (function_exists('buildPredictionScoreFeedback')) {
+        $feedback = buildPredictionScoreFeedback((int)$courseId, $loaded['score'], array(
+            'pred_test_id' => $predId,
+            'pred_name' => isset($response['prediction_test']['test_name']) ? $response['prediction_test']['test_name'] : '',
+        ));
+        if ($feedback !== null) {
+            $report['score_feedback'] = $feedback;
+        }
+    }
+
+    if ((int)$courseId === 24) {
+        $report['applicant_name'] = $userName;
+        $report['session_date'] = $loaded['date'];
+        $report['afqt_percentile_score'] = array(
+            "result_id" => $loaded['result_id'],
+            "user_id" => (int)$user['user_id'],
+            "cat_id" => $predId,
+            "Predic_test_id" => $predId,
+            "score" => (string)$loaded['score'],
+            "result_date" => $loaded['date'],
+            "pred_name" => "AFOQT",
+        );
+    }
+
+    $response['report'] = $report;
+    return true;
+}
+
+function legacyTryReviewPredictionTest(&$response, $user, $courseId)
+{
+    $decoded = legacyDecodeResultId(isset($_POST['result_id']) ? $_POST['result_id'] : '');
+    if (!$decoded || $decoded['type'] !== 2 || empty($user['old_user_id'])) {
+        return false;
+    }
+
+    $loaded = legacyPredictionDetail($user, $decoded);
+    if ($loaded === null) {
+        return false;
+    }
+
+    $catalog = legacyOfficersCatalog($courseId);
+    $predId = legacyResolvePostedPredId($catalog, $loaded['detail'], $decoded);
+    $subjects = legacyPredictionSubjects($catalog, $loaded['detail'], $courseId, $predId, $loaded['result_id'], $loaded['date']);
+
+    $scores = array();
+    $selected = null;
+    $postedCatId = isset($_POST['cat_id']) ? (int)$_POST['cat_id'] : 0;
+    foreach ($subjects as $catName => $subject) {
+        $scores[$catName] = array(
+            "cat_name" => $catName,
+            "result_id" => $loaded['result_id'],
+            "cat_id" => $subject['cat_id'],
+            "pred_test_id" => $predId,
+            "total_questions" => 0,
+            "correct_answers" => 0,
+            "wrong_answers" => 0,
+            "score" => $subject['score'],
+            "result_date" => $loaded['date'],
+            "parent_id" => 0,
+        );
+        if ($selected === null || ($postedCatId > 0 && (int)$subject['cat_id'] === $postedCatId)) {
+            $selected = $subject;
+        }
+    }
+
+    $response['pred_test_cat_wise_scores'] = $scores;
+    $response['prediction_score'] = $loaded['score'];
+    $response['cat_id'] = $selected ? $selected['cat_id'] : $postedCatId;
+    $response['cat_name'] = $selected ? $selected['cat_name'] : '';
+    $response['questions'] = array();
+    return true;
 }
 
