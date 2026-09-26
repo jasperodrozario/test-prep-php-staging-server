@@ -11,7 +11,7 @@ include("configs/license.php");
 include("configs/array.php");
 include("configs/lesson_playlist.php");
 include("configs/prediction_score_courses.php");
-include("configs/legacy_officers_progress.php");
+include("configs/legacy_officers_progress_report.php");
 include("smtpmail.php");
 
 function getExamTables($test_id)
@@ -1395,8 +1395,6 @@ if ($_POST['action']) {
 
                     $response['homework_total'] = getTotalRow("lesson_questions", array("cat_id" => $lesson['cat_id'], "lesson_id" => $lesson['lesson_id'], "course_id" => $test_id, "HW" => 1));
 
-                    
-
                     if (in_array($_POST['cat_id'], $data['story_question'])) {
                         $story_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.story_id", array("l.cat_id" => (int)$_POST['cat_id'], "l.lesson_id" => (int)$_POST['lesson_id'], "l.HW" => 1), array("q.qid" => "l.qid"), $order_by, '', '', 'q.story_id');
 
@@ -1445,10 +1443,7 @@ if ($_POST['action']) {
                         $qlist = [];
                         $serial_no = 0;
                         foreach ($homework_list as $d) {
-
-                        
                             $serial_no++;
-
                             $qlist[] = array("serial_no" => $serial_no, "qid" => $d['qid'], "cat_id" => $d['cat_id'], "lesson_id" => $d['lesson_id'], "question" => html_entity_decode(html_entity_decode($d['question'])), "question_explanation" => html_entity_decode(html_entity_decode($d['explanation'])), "correct_answer" => $data['alphabet'][$d['answer']], "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))));
                         }
                         $response['homework_questions'] = $qlist;
@@ -2325,6 +2320,12 @@ if ($_POST['action']) {
                     $cat_scores = array();
                 }
 
+                $shsat_english_correct = 0;
+                $shsat_english_total = 0;
+                $shsat_math_correct = 0;
+                $shsat_math_total = 0;
+                $shsat_scores = array();
+
                 foreach ($pred_cat_list as $p) {
                     if (!is_array($p) || empty($p['cat_id'])) {
                         continue;
@@ -2335,11 +2336,20 @@ if ($_POST['action']) {
                     $num_questions = isset($p['number_of_questions']) ? (int)$p['number_of_questions'] : 0;
                     $num_correct_ans = (int)getTotalRow($exam_table, array("iscorrect" => 1, "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "is_result" => 0));
 
-                    if (isStateMathCourseId($test_id) || isShsatCourseId($test_id)) {
+                    if (isStateMathCourseId($test_id)) {
                         $correct_ans_percentage = predictionScoreFeedbackPercent($num_correct_ans, $num_questions);
-                        $cat_score = isStateMathCourseId($test_id)
-                            ? scaleStateMathSolScore($correct_ans_percentage)
-                            : scaleShsatSectionScore($correct_ans_percentage);
+                        $cat_score = scaleStateMathSolScore($correct_ans_percentage);
+                    } else if (isShsatCourseId($test_id)) {
+                        $section = shsatCategorySection($cat);
+                        if ($section === 'english') {
+                            $shsat_english_correct += $num_correct_ans;
+                            $shsat_english_total += $num_questions;
+                            $cat_score = 0;
+                        } else if ($section === 'math') {
+                            $shsat_math_correct += $num_correct_ans;
+                            $shsat_math_total += $num_questions;
+                            $cat_score = computeShsatSectionScaledScore($num_correct_ans, $num_questions);
+                        }
                     } else if ($num_correct_ans) {
 
                         if ($test_id == 24) { // AFOQT Score Calculation
@@ -2364,7 +2374,7 @@ if ($_POST['action']) {
                             $correct_ans_percentage = round(($num_correct_ans / $p['number_of_questions']) * 100);
                             $cat_score = round(20 + $correct_ans_percentage * 0.55);
                             $cat_scores[$cat['shortcode']] = $cat_score;
-                        } else if ($test_id == 38) { // ASVAB Prep 2025
+                        } else if ($test_id == 38) { // ASVAB Prep 2027
 
                             $correct_ans_percentage = round(($num_correct_ans / $p['number_of_questions']) * 100);
                             $cat_score = round(20 + $correct_ans_percentage * 0.55);
@@ -2460,11 +2470,17 @@ if ($_POST['action']) {
                     $afqt_score = $data['full_asvab_pred_score_array'][$raw_score];
                     $final_pred_score = $afqt_score;
                     $final_ve_score = $ve_score;
-                } else if (isStateMathCourseId($test_id) || isShsatCourseId($test_id)) {
+                } else if (isStateMathCourseId($test_id)) {
                     $overall_pct = predictionScoreFeedbackPercent($total_correct_ans, $total_questions);
-                    $final_pred_score = isStateMathCourseId($test_id)
-                        ? scaleStateMathSolScore($overall_pct)
-                        : scaleShsatSectionScore($overall_pct);
+                    $final_pred_score = scaleStateMathSolScore($overall_pct);
+                } else if (isShsatCourseId($test_id)) {
+                    $shsat_scores = computeShsatCompositeScore(
+                        $shsat_english_correct,
+                        $shsat_english_total,
+                        $shsat_math_correct,
+                        $shsat_math_total
+                    );
+                    $final_pred_score = $shsat_scores['total'];
                 } else if ($test_id == 38 || $test_id == 39) { // ASVAB Prep 2025 & ASVAB GT
 
                     $full_asvab_scores = array();
@@ -2553,6 +2569,9 @@ if ($_POST['action']) {
 
                     if ($test_id == 28) { // ASVAB Tutoring
                         insertTable("result", array("pred_name" => "VE", "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "score" => $final_ve_score, "parent_id" => $reslt_id, "result_date" => date("Y-m-d")));
+                    } else if (isShsatCourseId($test_id) && !empty($shsat_scores) && is_array($shsat_scores)) {
+                        insertTable("result", array("pred_name" => "English", "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "score" => $shsat_scores['english'], "parent_id" => $reslt_id, "result_date" => date("Y-m-d"), "total_questions" => $shsat_english_total, "correct_answers" => $shsat_english_correct));
+                        insertTable("result", array("pred_name" => "Math", "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "score" => $shsat_scores['math'], "parent_id" => $reslt_id, "result_date" => date("Y-m-d"), "total_questions" => $shsat_math_total, "correct_answers" => $shsat_math_correct));
                     }
                 }
 
@@ -2652,6 +2671,20 @@ if ($_POST['action']) {
                 } else if ($test_id == 28) {
 
                     $pred_report = getQuery("result", "*", array("user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "total_questions >" => 0, "score!" => -1), "result_id desc", 1);
+                } else if (isShsatCourseId($test_id)) {
+
+                    $hub_candidates = queryRowsOrEmpty(getQuery("result", "*", array("user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "score!" => -1), "result_id desc"));
+                    $pred_report = array();
+                    foreach ($hub_candidates as $hub_candidate) {
+                        if (!is_array($hub_candidate)) {
+                            continue;
+                        }
+                        if (!empty($hub_candidate['pred_name'])) {
+                            continue;
+                        }
+                        $pred_report = array($hub_candidate);
+                        break;
+                    }
                 } else {
 
                     $pred_report = getQuery("result", "*", array("user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $_POST['pred_test_id'], "score!" => -1), "result_id desc", 1);
@@ -2738,6 +2771,84 @@ if ($_POST['action']) {
                     }
                 }
 
+                if (isShsatCourseId($test_id)) {
+                    $english_correct = 0;
+                    $english_total = 0;
+                    $math_correct = 0;
+                    $math_total = 0;
+
+                    foreach ($pred_cat_list as $p) {
+                        if (!is_array($p) || empty($p['cat_id'])) {
+                            continue;
+                        }
+                        $cat = getDataByWhere("category", "*", array("cat_id" => $p['cat_id']));
+                        if (!is_array($cat) || empty($cat['category_name'])) {
+                            continue;
+                        }
+                        $cat_name = $cat['category_name'];
+                        if (empty($response['report'][$cat_name]) || !is_array($response['report'][$cat_name])) {
+                            continue;
+                        }
+
+                        $section = shsatCategorySection($cat);
+                        $card = $response['report'][$cat_name];
+                        $card_correct = isset($card['correct']) ? (int)$card['correct'] : 0;
+                        $card_total = isset($card['total_questions']) ? (int)$card['total_questions'] : 0;
+
+                        if ($section === 'english') {
+                            $english_correct += $card_correct;
+                            $english_total += $card_total;
+                            unset($response['report'][$cat_name]['score']);
+                        } else if ($section === 'math') {
+                            $math_correct += $card_correct;
+                            $math_total += $card_total;
+                            $response['report'][$cat_name]['score'] = computeShsatSectionScaledScore($card_correct, $card_total);
+                        }
+                    }
+
+                    $english_scaled = ($english_total > 0) ? computeShsatSectionScaledScore($english_correct, $english_total) : 0;
+                    $math_scaled = ($math_total > 0) ? computeShsatSectionScaledScore($math_correct, $math_total) : 0;
+                    $composite = $english_scaled + $math_scaled;
+                    $overall_correct = $english_correct + $math_correct;
+                    $overall_total = $english_total + $math_total;
+
+                    $ps = isset($response['report']['prediction_score']) && is_array($response['report']['prediction_score'])
+                        ? $response['report']['prediction_score']
+                        : array();
+                    $ps['correct'] = $overall_correct;
+                    $ps['total_questions'] = $overall_total;
+                    $ps['wrong'] = $overall_total - $overall_correct;
+                    $ps['score'] = $composite;
+                    $response['report']['prediction_score'] = $ps;
+
+                    $response['report']['English'] = array(
+                        "result_id" => isset($ps['result_id']) ? $ps['result_id'] : '',
+                        "cat_id" => isset($ps['cat_id']) ? $ps['cat_id'] : $_POST['pred_test_id'],
+                        "cat_name" => "English",
+                        "shortcode" => "English",
+                        "pred_test_id" => isset($ps['pred_test_id']) ? $ps['pred_test_id'] : $_POST['pred_test_id'],
+                        "course_id" => $test_id,
+                        "date" => isset($ps['date']) ? $ps['date'] : '',
+                        "correct" => $english_correct,
+                        "total_questions" => $english_total,
+                        "wrong" => $english_total - $english_correct,
+                        "score" => $english_scaled,
+                    );
+
+                    $feedback = buildPredictionScoreFeedback(
+                        (int)$test_id,
+                        $composite,
+                        array(
+                            'pred_test_id' => isset($ps['pred_test_id']) ? $ps['pred_test_id'] : $_POST['pred_test_id'],
+                            'total_questions' => $overall_total,
+                            'shsat_composite' => 1,
+                        )
+                    );
+                    if ($feedback !== null) {
+                        $response['report']['score_feedback'] = $feedback;
+                    }
+                }
+
                 if ($test_id == 38 || $test_id == 39) {
 
                     $response['report']['VE'] = cleanArray(
@@ -2809,8 +2920,7 @@ if ($_POST['action']) {
             } else {
                 $response['error'] = "Token does not exist!";
             }
-            break;
-
+            break;    
 
         case "progress-report":
 
@@ -4089,19 +4199,21 @@ if ($_POST['action']) {
                     'performance_analytics'
                 );
 
-                if ($final_actual_score < 1 || $final_actual_score > 99) {
-                    $response['error'] = "Final actual score must be between 1 and 99.";
+                $score_ranges = getAppReviewScoreRanges($test_id);
+
+                if ($final_actual_score < $score_ranges['final_min'] || $final_actual_score > $score_ranges['final_max']) {
+                    $response['error'] = "Final actual score must be a " . $score_ranges['final_label'] . ".";
                     $response['isSuccess'] = false;
                     break;
                 }
 
                 if ($initial_practice_score !== '') {
                     $initial_practice_score = (int)$initial_practice_score;
-                    if ($initial_practice_score < 1 || $initial_practice_score > 99) {
-                        $response['error'] = "Initial practice score must be between 1 and 99.";
-                    $response['isSuccess'] = false;
-                    break;
-                }
+                    if ($initial_practice_score < $score_ranges['initial_min'] || $initial_practice_score > $score_ranges['initial_max']) {
+                        $response['error'] = "Initial practice score must be a " . $score_ranges['initial_label'] . ".";
+                        $response['isSuccess'] = false;
+                        break;
+                    }
                 } else {
                     $initial_practice_score = null;
                 }
@@ -4161,7 +4273,7 @@ if ($_POST['action']) {
             }
 
             break;
-
+    
         case "tutoring-invitation-email":
 
             $mail = getDataByWhere("mailsetup", "*", array("mail_type" => "tutoring_invitation"));

@@ -7,6 +7,7 @@ include("configs/config.php");
 include("configs/common.php");
 include("configs/license.php");
 include("configs/array.php");
+include("configs/prediction_score_courses.php");
 include("smtpmail.php");
 
 // // Handle preflight OPTIONS request
@@ -2308,6 +2309,8 @@ if ($_POST['action']) {
                 $pred_test_id = 31;
             } else if ($course_id == 60) { // State Math Test Prep
                 $pred_test_id = 53;
+            } else if ($course_id == 30) { // SHSAT
+                $pred_test_id = 46;
             } else {
                 $response = [
                     "message"    => "Prediction Test ID is not recognized. Please pass the correct `pred_test_id` in the api response."
@@ -2349,6 +2352,10 @@ if ($_POST['action']) {
             }
 
             $cat_scores = array();
+            $shsat_english_correct = 0;
+            $shsat_english_total = 0;
+            $shsat_math_correct = 0;
+            $shsat_math_total = 0;
 
             foreach ($pred_cat_list as $p) {
                 $cat = getDataByWhere("category", "*", array("cat_id" => $p['cat_id']));
@@ -2373,13 +2380,15 @@ if ($_POST['action']) {
                         $cat_scores[$cat['shortcode']]['score'] = $cat_score;
                     } else if ($course_id == 60) { // State Math Test Prep
                         $correct_ans_percentage = round(($num_correct_ans / $cat_total_num_of_ques[$cat_index]) * 100);
-                        $scaled_to_50 = (int)round(($correct_ans_percentage / 100) * 50);
-                        if ($scaled_to_50 < 0) {
-                            $scaled_to_50 = 0;
-                        } else if ($scaled_to_50 > 50) {
-                            $scaled_to_50 = 50;
+                        $cat_score = scaleStateMathSolScore($correct_ans_percentage);
+                        $cat_scores[$cat['shortcode']]['score'] = $cat_score;
+                    } else if ($course_id == 30) { // SHSAT
+                        $section = shsatCategorySection($cat);
+                        if ($section === 'math') {
+                            $cat_score = computeShsatSectionScaledScore($num_correct_ans, $cat_total_num_of_ques[$cat_index]);
+                        } else {
+                            $cat_score = 0;
                         }
-                        $cat_score = $data["state_math_test_prep_score_array"][$scaled_to_50];
                         $cat_scores[$cat['shortcode']]['score'] = $cat_score;
                     } else { // OAR, SIFT, ASTB
                         $correct_ans_percentage = round(($num_correct_ans / $cat_total_num_of_ques[$cat_index]) * 100);
@@ -2393,6 +2402,17 @@ if ($_POST['action']) {
                 $num_wrong_ans = $cat_total_num_of_ques[$cat_index] - $num_correct_ans;
                 $total_questions += $cat_total_num_of_ques[$cat_index];
                 $total_correct_ans += $num_correct_ans;
+
+                if ($course_id == 30) {
+                    $section = shsatCategorySection($cat);
+                    if ($section === 'english') {
+                        $shsat_english_correct += (int)$num_correct_ans;
+                        $shsat_english_total += (int)$cat_total_num_of_ques[$cat_index];
+                    } else if ($section === 'math') {
+                        $shsat_math_correct += (int)$num_correct_ans;
+                        $shsat_math_total += (int)$cat_total_num_of_ques[$cat_index];
+                    }
+                }
             }
 
             $pred_test_data = getDataByWhere("predic_test", "test_name, passing_score", array("Predic_test_id" => $pred_test_id));
@@ -2440,18 +2460,33 @@ if ($_POST['action']) {
             } else if ($course_id == 60) { // State Math Test Prep
                 if ($total_questions > 0) {
                     $correct_ans_percentage = round(($total_correct_ans / $total_questions) * 100);
-                    $scaled_to_50 = (int)round(($correct_ans_percentage / 100) * 50);
-                    if ($scaled_to_50 < 0) {
-                        $scaled_to_50 = 0;
-                    } else if ($scaled_to_50 > 50) {
-                        $scaled_to_50 = 50;
-                    }
-                    $final_pred_score = $data["state_math_test_prep_score_array"][$scaled_to_50];
+                    $final_pred_score = scaleStateMathSolScore($correct_ans_percentage);
                 } else {
                     $response = [
                         "status"     => 400,
                         "isSuccess"  => false,
                         "message"    => "Could not compute final prediction score: no questions found."
+                    ];
+                    break;
+                }
+            } else if ($course_id == 30) { // SHSAT
+                if ($shsat_english_total > 0 || $shsat_math_total > 0) {
+                    $shsat_scores = computeShsatCompositeScore(
+                        $shsat_english_correct,
+                        $shsat_english_total,
+                        $shsat_math_correct,
+                        $shsat_math_total
+                    );
+                    $final_pred_score = $shsat_scores['total'];
+                    $response['section_scores'] = array(
+                        'english' => $shsat_scores['english'],
+                        'math' => $shsat_scores['math'],
+                    );
+                } else {
+                    $response = [
+                        "status"     => 400,
+                        "isSuccess"  => false,
+                        "message"    => "Could not compute final prediction score: no SHSAT sections found."
                     ];
                     break;
                 }

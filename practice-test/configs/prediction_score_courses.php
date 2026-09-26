@@ -151,24 +151,90 @@ function scaleStateMathSolScore($percent)
     return 0;
 }
 
+function shsatCategorySection($cat)
+{
+    if (!is_array($cat)) {
+        return '';
+    }
+
+    $code = strtolower(trim((string)($cat['shortcode'] ?? '')));
+    $name = strtolower(trim((string)($cat['category_name'] ?? '')));
+    $haystack = $code . ' ' . $name;
+
+    if (strpos($haystack, 'ela') !== false || strpos($haystack, 'english') !== false) {
+        return 'english';
+    }
+    if (strpos($haystack, 'math') !== false) {
+        return 'math';
+    }
+
+    return '';
+}
+
+function scaleShsatRawScore($raw)
+{
+    global $data;
+
+    $raw = (int)$raw;
+    if ($raw < 0) {
+        $raw = 0;
+    } elseif ($raw > 57) {
+        $raw = 57;
+    }
+
+    $table = (isset($data['shsat_pred_score_array']) && is_array($data['shsat_pred_score_array']))
+        ? $data['shsat_pred_score_array']
+        : array();
+
+    if (isset($table[$raw])) {
+        return (int)$table[$raw];
+    }
+
+    return 0;
+}
+
 function scaleShsatSectionScore($percent)
 {
-    $percent = (float)$percent;
+    $percent = (int)round((float)$percent);
     if ($percent < 0) {
         $percent = 0;
     } elseif ($percent > 100) {
         $percent = 100;
     }
 
-    $score = (int)round(14 + ($percent / 100) * 386);
-    if ($score < 14) {
-        return 14;
+    return scaleShsatRawScore((int)round(($percent / 100) * 57));
+}
+
+function computeShsatSectionScaledScore($correct, $total)
+{
+    $correct = (int)$correct;
+    $total = (int)$total;
+    if ($correct < 0) {
+        $correct = 0;
     }
-    if ($score > 400) {
-        return 400;
+    if ($total > 0 && $correct > $total) {
+        $correct = $total;
     }
 
-    return $score;
+    // Official table is raw correct answers (0–57). Unanswered are already
+    // excluded from $correct. Do not percent-scale a 5/10/42-item ELA part.
+    return scaleShsatRawScore($correct);
+}
+
+function computeShsatCompositeScore($englishCorrect, $englishTotal, $mathCorrect, $mathTotal)
+{
+    $english = ((int)$englishTotal > 0)
+        ? computeShsatSectionScaledScore($englishCorrect, $englishTotal)
+        : 0;
+    $math = ((int)$mathTotal > 0)
+        ? computeShsatSectionScaledScore($mathCorrect, $mathTotal)
+        : 0;
+
+    return array(
+        'english' => $english,
+        'math' => $math,
+        'total' => $english + $math,
+    );
 }
 
 function predictionScoreAfoqtFamilyFromLabel($label)
@@ -281,10 +347,8 @@ function predictionScoreFeedbackFamily($courseId, $score, $context = array())
         return 'astb';
     }
     if (isShsatCourseId($courseId)) {
-        // Always the official section scale (14–400, 280/250). Score > 400 is
-        // treated as ELA+Math composite (200–800). Do not use the old AFOQT
-        // 20–75 / percent-accuracy fallback.
-        if ($score > 400) {
+        $totalQuestions = isset($context['total_questions']) ? (int)$context['total_questions'] : 0;
+        if (!empty($context['shsat_composite']) || $score > 400 || $totalQuestions >= 114) {
             return 'shsat_composite';
         }
         return 'shsat_section';
