@@ -258,7 +258,9 @@ function cleanArray($data)
 }
 
 /**
- * Free users (activation_status = N) may take one prediction test; subscribers are always allowed.
+ * Free users (activation_status = N) may submit one prediction test; subscribers are always allowed.
+ * A submitted prediction test is a result row with Predic_test_id > 0 and score > -1.
+ * In-progress rows (score = -1) and lesson results are ignored.
  * Returns 1 when the user may open/submit, 0 when subscription is required.
  */
 function getCanTakePredTestFlag($user)
@@ -267,7 +269,18 @@ function getCanTakePredTestFlag($user)
         return 1;
     }
 
-    if (!empty($user['took_pred_test']) && (int)$user['took_pred_test'] === 1) {
+    $user_id = !empty($user['user_id']) ? (int)$user['user_id'] : 0;
+    if ($user_id <= 0) {
+        return 1;
+    }
+
+    $submitted_prediction_tests = (int)getTotalRow("result", array(
+        "user_id" => $user_id,
+        "Predic_test_id >" => 0,
+        "score >" => -1
+    ));
+
+    if ($submitted_prediction_tests > 0) {
         return 0;
     }
 
@@ -2024,6 +2037,9 @@ if ($_POST['action']) {
                         if (!$i && !$_POST['cat_id']) {
                             $_POST['cat_id'] = $cat['cat_id'];
                             $flag = 0;
+                            $pred_qb_id = $p["pred_qb_id"];
+                        } else if ($cat['cat_id'] == $_POST['cat_id']) {
+                            $pred_qb_id = $p["pred_qb_id"];
                         }
 
                         $completed = (int)getTotalRow($exam_table, ['Predic_test_id' => $_POST['pred_test_id'], 'user_id' => $user_id, 'cat_id' => $cat['cat_id'], 'user_ans>' => 0, 'is_result' => 0]);
@@ -2039,6 +2055,7 @@ if ($_POST['action']) {
 
                         $i++;
                     }
+
                     $response['cat_id'] = $_POST['cat_id'];
                     $response['category_name'] = getFldValueById("category", "category_name", ["cat_id" => $_POST['cat_id']]);
                     $response['completed_total'] = $completed_total;
@@ -2096,7 +2113,48 @@ if ($_POST['action']) {
                                 $story_list_array = getQueryByJoin(array("question as q", "predic_questions as p"), "q.story_id", array("p.cat_id" => (int)$cat_id, "p.set_id" => $set_id, "q.story_id >" => 0, "p.predic_test_id" => $_POST['pred_test_id'], "p.course_id" => $test_id), array("q.qid" => "p.qid"), "", "", "", "q.story_id");
                             } else {
                                 $story_total = (int)$limit;
-                                $story_list_array = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.story_id", array("l.cat_id" => (int)$cat_id, "l.course_id" => $test_id), array("q.qid" => "l.qid"), "rand()", "", "", "q.story_id");
+
+                                $tmp_set_num = getQuery(
+                                    "lesson_questions",
+                                    "ques_set_num",
+                                    array("pred_id" => $pred_qb_id),
+                                    "",
+                                    "",
+                                    "",
+                                    "ques_set_num"
+                                );
+
+                                $set_num = [];
+                                foreach ($tmp_set_num as $r) {
+                                    $set_num[] = $r['ques_set_num'];
+                                }
+
+                                if (!empty($set_num)) {
+                                    $random_key = array_rand($set_num);
+                                    $random_set = $set_num[$random_key];
+
+                                    $where = array(
+                                        "l.pred_id" => $pred_qb_id,
+                                        "l.ques_set_num" => $random_set
+                                    );
+                                } else {
+                                    $where = array(
+                                        "l.pred_id" => $pred_qb_id
+                                    );
+                                }
+
+                                $story_list_array = getQueryByJoin(
+                                    array("question as q", "lesson_questions as l"),
+                                    "q.story_id",
+                                    $where,
+                                    array("q.qid" => "l.qid"),
+                                    "",
+                                    "",
+                                    "",
+                                    "q.story_id"
+                                );
+
+                                // $story_list_array = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.story_id", array("l.pred_id" => $pred_qb_id), array("q.qid" => "l.qid"), "", "", "", "q.story_id");
                             }
                         }
 
@@ -2178,7 +2236,9 @@ if ($_POST['action']) {
                             if ($set_id) {
                                 $question_list = getQueryByJoin(array("predic_questions as p", "question as q"), "q.*,p.*", array("p.set_id" => $set_id, "p.course_id" => $test_id, "p.predic_test_id" => $_POST['pred_test_id'], "p.cat_id" => $cat_id), array("p.qid" => "q.qid"), "rand()", $limit);
                             } else {
-                                $question_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*,l.*", array("l.cat_id" => (int)$cat_id, "l.course_id" => $test_id), array("q.qid" => "l.qid"), "rand()", $limit, "", "q.qid");
+                                // $question_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*,l.*", array("l.cat_id" => (int)$cat_id, "l.course_id" => $test_id), array("q.qid" => "l.qid"), "rand()", $limit, "", "q.qid");
+
+                                $question_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*,l.*", array("l.pred_id" => (int)$pred_qb_id), array("q.qid" => "l.qid"), "rand()", $limit, "", "q.qid");
                             }
                         }
                     }
