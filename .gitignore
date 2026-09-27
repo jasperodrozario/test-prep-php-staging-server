@@ -72,3 +72,6 @@ assets/vendor_js/
 /practice-test/dompdf/
 /practice-test/jpgraph/
 /admincp/calender/
+
+# local uploads
+local_uploads/

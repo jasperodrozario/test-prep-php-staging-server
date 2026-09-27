@@ -11,6 +11,7 @@ include("configs/license.php");
 include("configs/array.php");
 include("configs/lesson_playlist.php");
 include("configs/prediction_score_courses.php");
+include(__DIR__ . "/app-intro-videos.php");
 include("smtpmail.php");
 
 function getExamTables($test_id)
@@ -4041,6 +4042,39 @@ if ($_POST['action']) {
                 $response['isSuccess'] = false;
                 $response['error'] = "Token does not exist!";
             }
+            break;
+
+        case "get-intro-video":
+            $token = isset($_POST["authorizationToken"]) && is_string($_POST["authorizationToken"])
+                ? trim($_POST["authorizationToken"])
+                : "";
+            if ($token === "") {
+                $response["isSuccess"] = false;
+                $response["error"] = "Authorization token is required!";
+                break;
+            }
+
+            $exist = getTotalRow("login", array("auth_token" => $token));
+            if ($exist == 0) {
+                $response["isSuccess"] = false;
+                $response["error"] = "Token does not exist!";
+                break;
+            }
+
+            $user = getDataByJoin(
+                array("user as u", "login as l"),
+                "u.*,l.*",
+                array("l.auth_token" => $token),
+                array("u.user_id" => "l.user_id")
+            );
+
+            $user_id = $user["user_id"];
+            $course_id = (int) getFldValueById("subscription", "course_id", array("user_id" => $user_id));
+            $urls = getIntroVideoForCourse($course_id, $configs["vpath"]);
+
+            $response["isSuccess"] = true;
+            $response["server_url"] = $urls["server_url"];
+            $response["youtube_url"] = $urls["youtube_url"];
             break;
     }
 

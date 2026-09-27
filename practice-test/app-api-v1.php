@@ -12,6 +12,7 @@ include("configs/array.php");
 include("configs/lesson_playlist.php");
 include("configs/prediction_score_courses.php");
 include("configs/legacy_officers_progress_report.php");
+include(__DIR__ . "/app-intro-videos.php");
 include("smtpmail.php");
 
 function getExamTables($test_id)
@@ -474,7 +475,7 @@ if ($_POST['action']) {
                         $body = str_replace("{activation_code}", $activation_code, $body);
                         $body = str_replace("{email}", $userData['email'], $body);
                         $body = str_replace("{timestamp}", $timestamp, $body);
-                        $body = str_replace("{login_url}", "https://staging-test-prep.asvab-tutoring.com/login", $body);
+                        $body = str_replace("{login_url}", "https://test-prep.asvab-tutoring.com/login", $body);
 
                         // TRIPLE DECODE
                         $body = html_entity_decode($body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -485,8 +486,8 @@ if ($_POST['action']) {
                         $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                         // ASSETS
-                        $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                        $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                        $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                        $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                         // LOAD STYLED EMAIL TEMPLATE
                         $inner_body = $body;
@@ -533,8 +534,8 @@ if ($_POST['action']) {
                             $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                             // ASSETS
-                            $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                            $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                            $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                            $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                             // LOAD STYLED EMAIL TEMPLATE
                             $inner_body = $body;
@@ -696,7 +697,7 @@ if ($_POST['action']) {
                         $body = str_replace("{activation_code}", $activation_code, $body);
                         $body = str_replace("{email}", $_POST['email'], $body);
                         $body = str_replace("{timestamp}", $timestamp, $body);
-                        $body = str_replace("{login_url}", "https://staging-test-prep.asvab-tutoring.com/login", $body);
+                        $body = str_replace("{login_url}", "https://test-prep.asvab-tutoring.com/login", $body);
 
                         // TRIPLE DECODE
                         $body = html_entity_decode($body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -707,8 +708,8 @@ if ($_POST['action']) {
                         $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                         // ASSETS
-                        $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                        $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                        $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                        $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                         // LOAD STYLED EMAIL TEMPLATE
                         $inner_body = $body;
@@ -755,8 +756,8 @@ if ($_POST['action']) {
                             $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                             // ASSETS
-                            $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                            $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                            $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                            $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                             // LOAD STYLED EMAIL TEMPLATE
                             $inner_body = $body;
@@ -936,8 +937,8 @@ if ($_POST['action']) {
                     $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                     // ASSETS
-                    $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                    $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                    $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                    $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                     // LOAD STYLED EMAIL TEMPLATE
                     $inner_body = $body;
@@ -1008,8 +1009,8 @@ if ($_POST['action']) {
                     $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                     // ASSETS
-                    $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                    $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                    $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                    $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                     // LOAD STYLED EMAIL TEMPLATE
                     $inner_body = $body;
@@ -1064,7 +1065,7 @@ if ($_POST['action']) {
                         if (!empty($mail) && isset($mail['template'], $mail['subject'])) {
 
                             $timestamp = date("F j, Y \a\\t g:i A");
-                            $reset_link = "https://staging-test-prep.asvab-tutoring.com/forgot-password";
+                            $reset_link = "https://test-prep.asvab-tutoring.com/forgot-password";
                             $user_name = $user['first_name'] . " " . $user['last_name'];
                             $body = $mail['template'];
 
@@ -1084,8 +1085,8 @@ if ($_POST['action']) {
                             $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                             // ASSETS
-                            $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                            $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                            $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                            $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                             // LOAD STYLED EMAIL TEMPLATE
                             $inner_body = $body;
@@ -1435,8 +1436,8 @@ if ($_POST['action']) {
                                             '"/practice-test/uploads/'
                                         ],
                                         [
-                                            '"https://staging-test-prep.asvab-tutoring.com/practice-test/uploads/',
-                                            '"https://staging-test-prep.asvab-tutoring.com/practice-test/uploads/'
+                                            '"https://test-prep.asvab-tutoring.com/practice-test/uploads/',
+                                            '"https://test-prep.asvab-tutoring.com/practice-test/uploads/'
                                         ],
                                         $story_content
                                     );
@@ -1525,6 +1526,7 @@ if ($_POST['action']) {
                         }
 
                         if (in_array($_POST['cat_id'], $data['story_question'])) {
+
                             $story_total = (int)getFldValueById("category", "num_of_story_pt", array("cat_id" => $_POST['cat_id'], "course_id" => $test_id));
 
                             if (!$story_total) {
@@ -1619,8 +1621,8 @@ if ($_POST['action']) {
                                                     '"/practice-test/uploads/'
                                                 ],
                                                 [
-                                                    '"https://staging-test-prep.asvab-tutoring.com/practice-test/uploads/',
-                                                    '"https://staging-test-prep.asvab-tutoring.com/practice-test/uploads/'
+                                                    '"https://test-prep.asvab-tutoring.com/practice-test/uploads/',
+                                                    '"https://test-prep.asvab-tutoring.com/practice-test/uploads/'
                                                 ],
                                                 $story_content
                                             );
@@ -1635,9 +1637,11 @@ if ($_POST['action']) {
                             }
                         } else {
                             $response['total'] = getFldValueById("category", "num_of_ques_pt", array("cat_id" => $_POST['cat_id'], "course_id" => $test_id));
+
                             if (!$response['total']) {
                                 $response['total'] = 15;
                             }
+
                             $qset = 0;
                             $qset = getTotalRow($exam_table, array("cat_id" => $_POST['cat_id'], "user_id" => $user_id, "lesson_id" => (int)$_POST['lesson_id'], "is_result" => 0));
 
@@ -1645,6 +1649,9 @@ if ($_POST['action']) {
                             if ($qset) {
                                 $response['practicetest'] = getQueryByJoin(array("question as q", "lesson_questions as l", "$exam_table as e"), "e.user_ans, e.id as eid, q.*, l.*", array("l.lesson_id" => $_POST['lesson_id'], "l.cat_id" => $_POST['cat_id'], "l.$pt_hw" => 1, "l.course_id" => $test_id, "e.user_id" => $user_id, "e.is_result" => 0), array("q.qid" => "l.qid", "e.qid" => "q.qid"), "e.id", $response['total'], "", "q.qid");
                             } else {
+
+                            $response['testing'] = $_POST['lesson_id'];
+
                                 $response['practicetest'] = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*,l.*", array("l.lesson_id" => $_POST['lesson_id'], "l.cat_id" => $_POST['cat_id'], "l.$pt_hw" => 1, "l.course_id" => $test_id), array("q.qid" => "l.qid"), "l.order_no", $response['total'], "", "q.qid");
                             }
                         }
@@ -2126,10 +2133,15 @@ if ($_POST['action']) {
 
                                 $set_num = [];
                                 foreach ($tmp_set_num as $r) {
-                                    $set_num[] = $r['ques_set_num'];
+                                    if (!empty($r['ques_set_num'])) {
+                                        $set_num[] = $r['ques_set_num'];
+                                    }
                                 }
 
+                                $response['testing2'] = $set_num;
+
                                 if (!empty($set_num)) {
+                                    $response['testing'] = "hello! im here.";
                                     $random_key = array_rand($set_num);
                                     $random_set = $set_num[$random_key];
 
@@ -3357,7 +3369,7 @@ if ($_POST['action']) {
                     if (!empty($mail) && isset($mail['template'], $mail['subject'])) {
 
                         $timestamp = date("F j, Y \a\\t g:i A");
-                        $reset_link = "https://staging-test-prep.asvab-tutoring.com/forgot-password";
+                        $reset_link = "https://test-prep.asvab-tutoring.com/forgot-password";
                         $user_name = $user['first_name'] . " " . $user['last_name'];
                         $first_name = $user['first_name'];
                         $email = $user['email'];
@@ -3380,8 +3392,8 @@ if ($_POST['action']) {
                         $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                         // ASSETS
-                        $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                        $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                        $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                        $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                         // LOAD STYLED EMAIL TEMPLATE
                         $inner_body = $body;
@@ -3752,8 +3764,8 @@ if ($_POST['action']) {
                     $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                     // ASSETS
-                    $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                    $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                    $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                    $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                     // LOAD STYLED EMAIL TEMPLATE
                     $inner_body = $body;
@@ -4142,7 +4154,7 @@ if ($_POST['action']) {
                             $correct_answer = $data['alphabet'][$d['answer']] . " | Your answer is " .  $data['alphabet'][$d['user_ans']] . " | " . $text;
                             $explanation = html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['explanation'])));
 
-                            $qlist[] = array("story" => str_replace('"/uploads/', '"https://staging-test-prep.asvab-tutoring.com/uploads/', html_entity_decode(html_entity_decode(html_entity_decode($story[$a['story_id']])))), "srno" => $i, "question" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['question']))), "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))), "correct_answer" => $correct_answer, "myanswer" => $d['user_ans'], "explanation" => $explanation);
+                            $qlist[] = array("story" => str_replace('"/uploads/', '"https://test-prep.asvab-tutoring.com/uploads/', html_entity_decode(html_entity_decode(html_entity_decode($story[$a['story_id']])))), "srno" => $i, "question" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['question']))), "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))), "correct_answer" => $correct_answer, "myanswer" => $d['user_ans'], "explanation" => $explanation);
                         }
                     }
                 } else {
@@ -4193,7 +4205,7 @@ if ($_POST['action']) {
             } else if ($_POST['course_id'] == 26) {
                 $web_url = "https://www.asvab-tutoring.com/package-details/1-on-1-tutoring/astb";
             } else {
-                $web_url = "https://staging-test-prep.asvab-tutoring.com/get-tutor?course_id=" . $_POST['course_id'] . "&isapp=1";
+                $web_url = "https://test-prep.asvab-tutoring.com/get-tutor?course_id=" . $_POST['course_id'] . "&isapp=1";
             }
 
             $response['web_url'] = $web_url;
@@ -4355,8 +4367,8 @@ if ($_POST['action']) {
                 $body = preg_replace('/<p>\s*<\/p>/i', '', $body);
 
                 // ASSETS
-                $logo_url = "https://staging-test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
-                $bg_pattern_url = "https://staging-test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
+                $logo_url = "https://test-prep.asvab-tutoring.com/images/asvab_tutoring_logo.png";
+                $bg_pattern_url = "https://test-prep.asvab-tutoring.com/images/review_bg-1.jpg";
 
                 // LOAD STYLED EMAIL TEMPLATE
                 $inner_body = $body;
@@ -4481,6 +4493,39 @@ if ($_POST['action']) {
                 $response['isSuccess'] = false;
                 $response['error'] = "Token does not exist!";
             }
+            break;
+
+        case "get-intro-video":
+            $token = isset($_POST["authorizationToken"]) && is_string($_POST["authorizationToken"])
+                ? trim($_POST["authorizationToken"])
+                : "";
+            if ($token === "") {
+                $response["isSuccess"] = false;
+                $response["error"] = "Authorization token is required!";
+                break;
+            }
+
+            $exist = getTotalRow("login", array("auth_token" => $token));
+            if ($exist == 0) {
+                $response["isSuccess"] = false;
+                $response["error"] = "Token does not exist!";
+                break;
+            }
+
+            $user = getDataByJoin(
+                array("user as u", "login as l"),
+                "u.*,l.*",
+                array("l.auth_token" => $token),
+                array("u.user_id" => "l.user_id")
+            );
+
+            $user_id = $user["user_id"];
+            $course_id = (int) getFldValueById("subscription", "course_id", array("user_id" => $user_id));
+            $urls = getIntroVideoForCourse($course_id, $configs["vpath"]);
+
+            $response["isSuccess"] = true;
+            $response["server_url"] = $urls["server_url"];
+            $response["youtube_url"] = $urls["youtube_url"];
             break;
     }
 
