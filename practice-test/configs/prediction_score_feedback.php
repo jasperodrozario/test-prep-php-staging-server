@@ -239,7 +239,31 @@ function predictionScoreFeedbackCatalog()
     );
 }
 
-function buildPredictionScoreFeedbackByFamily($family, $score)
+function predictionScoreFeedbackUserIsSubscribed($context = array())
+{
+    if (!is_array($context)) {
+        return false;
+    }
+
+    if (!empty($context['user']) && is_array($context['user']) && isset($context['user']['activation_status'])) {
+        return $context['user']['activation_status'] == 'Y';
+    }
+
+    $user_id = 0;
+    if (!empty($context['user']) && is_array($context['user']) && !empty($context['user']['user_id'])) {
+        $user_id = (int)$context['user']['user_id'];
+    } elseif (!empty($context['user_id'])) {
+        $user_id = (int)$context['user_id'];
+    }
+
+    if ($user_id > 0 && function_exists('getFldValueById')) {
+        return getFldValueById("user", "activation_status", array("user_id" => $user_id)) == 'Y';
+    }
+
+    return false;
+}
+
+function buildPredictionScoreFeedbackByFamily($family, $score, $context = array())
 {
     if ($score === null || $score === '' || !is_numeric($score)) {
         return null;
@@ -266,6 +290,8 @@ function buildPredictionScoreFeedbackByFamily($family, $score)
 
     $title = isset($config['titles'][$band]) ? $config['titles'][$band] : '';
     $message = isset($config['messages'][$band]) ? $config['messages'][$band] : '';
+    $subscribed = predictionScoreFeedbackUserIsSubscribed($context);
+    $show_boost_cta = ($score < $excellence && !$subscribed);
     $official_label = null;
     if (!empty($config['official_labels'][$band])) {
         $official_label = $config['official_labels'][$band];
@@ -281,6 +307,7 @@ function buildPredictionScoreFeedbackByFamily($family, $score)
         'scale_max' => (int)$config['scale_max'],
         'excellence_threshold' => $excellence,
         'progress_threshold' => $progress,
-        'show_boost_cta' => ($score < $excellence),
+        'show_boost_cta' => $show_boost_cta,
+        'boost_cta_label' => $show_boost_cta ? '🚀 Start Studying Now to Boost Your Score' : null,
     );
 }
