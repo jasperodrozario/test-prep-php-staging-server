@@ -122,6 +122,16 @@ function isAsvabAfqtCourseId($courseId)
     return ($name === 'asvab tutoring');
 }
 
+function stateMathCorrectPercent($correct, $total)
+{
+    $total = (int)$total;
+    if ($total <= 0) {
+        return 0;
+    }
+
+    return (int)round(((int)$correct / $total) * 100);
+}
+
 function scaleStateMathSolScore($percent)
 {
     global $data;

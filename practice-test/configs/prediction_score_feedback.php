@@ -23,16 +23,6 @@
  * Course ID → family mapping lives in prediction_score_courses.php.
  */
 
-function predictionScoreFeedbackPercent($correct, $total)
-{
-    $total = (int)$total;
-    if ($total <= 0) {
-        return 0;
-    }
-
-    return (int)round(((int)$correct / $total) * 100);
-}
-
 function predictionScoreFeedbackInterpolate($template, $score)
 {
     return str_replace('{score}', (string)$score, (string)$template);
@@ -200,7 +190,7 @@ function predictionScoreFeedbackCatalog()
             'messages' => array(
                 'excellence' => 'You scored {score} (composite ~200–800). That’s Stuyvesant-range and strong enough to clear every specialized high school.',
                 'progress' => 'You scored {score}. You’re in range for several specialized high schools (Brooklyn Latin is about ~495 composite). Keep pushing toward 560+ for Stuyvesant-level.',
-                'focus' => 'You scored {score}. Recent specialized-high-school cutoffs start around 495 composite. Aim for 560+.',
+                'focus' => 'You scored {score}. Recent specialized-high-school cutoffs start around 495 composite. Aim for 560+ in our platform to ensure you clear the cutoffs.',
             ),
         ),
         'sol' => array(
@@ -291,7 +281,12 @@ function buildPredictionScoreFeedbackByFamily($family, $score, $context = array(
     $title = isset($config['titles'][$band]) ? $config['titles'][$band] : '';
     $message = isset($config['messages'][$band]) ? $config['messages'][$band] : '';
     $subscribed = predictionScoreFeedbackUserIsSubscribed($context);
-    $show_boost_cta = ($score < $excellence && !$subscribed);
+    $show_boost_cta = !$subscribed;
+    if ($score >= $excellence) {
+        $boost_cta_label = '🚀 Boost your Confidence Further';
+    } else {
+        $boost_cta_label = '🚀 Start Studying Now to Boost Your Score';
+        }
     $official_label = null;
     if (!empty($config['official_labels'][$band])) {
         $official_label = $config['official_labels'][$band];
@@ -308,6 +303,6 @@ function buildPredictionScoreFeedbackByFamily($family, $score, $context = array(
         'excellence_threshold' => $excellence,
         'progress_threshold' => $progress,
         'show_boost_cta' => $show_boost_cta,
-        'boost_cta_label' => $show_boost_cta ? '🚀 Start Studying Now to Boost Your Score' : null,
+        'boost_cta_label' => $show_boost_cta ? $boost_cta_label : null,
     );
 }
