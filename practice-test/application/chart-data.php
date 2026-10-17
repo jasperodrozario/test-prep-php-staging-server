@@ -4,6 +4,7 @@ include("../configs/config.php");
 include("../configs/license.php");
 include("../configs/common.php");
 include("../configs/array.php");
+include_once("../configs/prediction_score_courses.php");
 
 function initials($str,$no="") {
     $ret = '';
@@ -45,6 +46,9 @@ switch($_GET['cat_id'])
         }
         
         $pred_cats=getQuery("predic_test","*",array("course_id"=>$_SESSION['test_id']),"test_order");
+
+        // SHSAT also saves English/Math section rows under each result; chart only the overall result.
+        $shsat_parent_only = isShsatCourseId($_SESSION['test_id']) ? array("ifnull(parent_id,0)" => 0) : array();
         
         foreach($pred_cats as $cat)
         {   
@@ -61,7 +65,7 @@ switch($_GET['cat_id'])
                 $scores=getQuery("result","*",array("user_id"=>$_SESSION['user_id'],"Predic_test_id"=>$cat['Predic_test_id'],"cat_id"=>$cat['Predic_test_id'],"score!"=>-1, "pred_name"=>"AFOQT Prediction test"),"result_id desc",5);
             }
             else{
-                $scores=getQuery("result","*",array("user_id"=>$_SESSION['user_id'],"Predic_test_id"=>$cat['Predic_test_id'],"cat_id"=>$cat['Predic_test_id'],"score!"=>-1),"result_id desc",5);
+                $scores=getQuery("result","*",array("user_id"=>$_SESSION['user_id'],"Predic_test_id"=>$cat['Predic_test_id'],"cat_id"=>$cat['Predic_test_id'],"score!"=>-1) + $shsat_parent_only,"result_id desc",5);
             }
 
             $j=0;
@@ -88,6 +92,9 @@ switch($_GET['cat_id'])
         $pred_cat=getDataByWhere("predic_test","*",array("Predic_test_id"=>$_GET['cat_id']));
 
         $prediction_ids = array(15,16,17,18,19,20);
+
+        // SHSAT also saves English/Math section rows under each result; chart only the overall result.
+        $shsat_parent_only = isShsatCourseId($_SESSION['test_id']) ? array("ifnull(parent_id,0)" => 0) : array();
         
         if ($pred_cat && (strpos($_GET['cat_name'], 'prediction') == true || in_array($_GET['cat_id'], $prediction_ids))) {
             if(($_SESSION['test_id'] == 27 && $_GET['cat_id'] == 23) || ($_SESSION['test_id'] == 40 && $_GET['cat_id'] == 39)){
@@ -97,7 +104,7 @@ switch($_GET['cat_id'])
                 $scores=getQuery("result","*",array("user_id"=>$_SESSION['user_id'],"Predic_test_id"=>$pred_cat['Predic_test_id'],"cat_id"=>$pred_cat['Predic_test_id'],"score!"=>-1, "pred_name"=>"AFOQT Prediction test"),"result_id desc",5);
             }
             else{
-                $scores=getQuery("result","*",array("user_id"=>$_SESSION['user_id'],"Predic_test_id"=>$pred_cat['Predic_test_id'],"cat_id"=>$pred_cat['Predic_test_id'],"score!"=>-1),"result_id desc",5);
+                $scores=getQuery("result","*",array("user_id"=>$_SESSION['user_id'],"Predic_test_id"=>$pred_cat['Predic_test_id'],"cat_id"=>$pred_cat['Predic_test_id'],"score!"=>-1) + $shsat_parent_only,"result_id desc",5);
             }
 
             foreach($scores as $s)

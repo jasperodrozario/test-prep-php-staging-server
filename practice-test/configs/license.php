@@ -322,13 +322,11 @@ function homework_paging($total, $limit,$cat_id,$lesson_id,$lesson_name) {
 	{
 		$start=1;
 		$end=2;
-		
 	}
 	else
 	{
 		$start = $limit - 1;
 		$end = $limit+1;
-		 
 	}	
  	$start_disabled="";
  	$next_disabled="";
@@ -344,36 +342,24 @@ function homework_paging($total, $limit,$cat_id,$lesson_id,$lesson_name) {
 	
 	$primary_text = $configs['vpath'] . "lesson/" . $cat_id . "-" . $lesson_id . "-" . $lesson_name."/homework/";
 	
-	//$paging['prev']= "<a class='slick-prevv' href='".$primary_text.($end - 1)."'>Previous <i class='fa fa-angle-left'></i></a>";
-	 
-	 	
-  ///  $paging['next']= "<a class='slick-nexttt'  href='".$primary_text.$end."'>Next <i class='fa fa-angle-right'></i></a>";
-	
 	if($start_disabled) 
 	{
 	    $paging['prev']= "<a id='previous' class='btn pull-left' href='javascript:void(0);return false;' " .$start_disabled ."><i class='fa fa-angle-left fa-2x'></i></a>";
-		
 	}	
 	else
 	{
 	    $paging['prev']= "<a id='previous' class='btn pull-left' href='".$primary_text.$start."'><i class='fa fa-angle-left fa-2x'></i></a>";
-		
 	}	
 	
 	if($next_disabled)
 	{
 		$paging['next']= "<a id='next' class='btn pull-right'  href='javascript:void(0);return false;' ".$next_disabled ."><i class='fa fa-angle-right fa-2x'></i></a>";
-
 	}
 	else
 	{
 		$paging['next']= "<a id='next' class='btn pull-right'  href='".$primary_text.$end."'><i class='fa fa-angle-right fa-2x'></i></a>";
-
 	}		
 	
-			
-    
-	return $paging;
-	 
+	return $paging; 
 }
 ?>

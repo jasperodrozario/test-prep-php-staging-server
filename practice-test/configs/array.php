@@ -112,7 +112,7 @@ $data['SIFT1'] = [
 
 ];
 
-$data['story_question'] = [48, 58, 84, 81, 63, 65, 34, 119, 112];
+$data['story_question'] = [48, 58, 84, 81, 63, 65, 34, 119, 112, 174, 175, 178, 179, 196];
 $data['afoqt_sub_category'] = [101, 102, 103, 104, 105, 106];
 
 $data["oc_afoqt_pred_score_array"] = [

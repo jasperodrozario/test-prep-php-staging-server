@@ -1,5 +1,6 @@
 <?php
 include("../configs/autoload.php");
+include_once("../configs/prediction_score_courses.php");
 chklogin(str_replace("/practice-test/","",$_SERVER['REQUEST_URI']));
 if($_SESSION['status']=="N")
 {
@@ -151,6 +152,42 @@ switch($_GET['result'])
                     $pred_test_report[$cat_name] = $t;
                 }
             }
+            // SHSAT: report Mathematics and English Language Arts only (ELA parts combined).
+            $shsat_groups = shsatPredictionCategoryGroups($_SESSION['test_id'], $pred_cat_list);
+            $review_cat_ids = array($_GET['lesson_id']);
+            if ($shsat_groups) {
+                $grouped_report = array();
+                foreach ($shsat_groups['groups'] as $key => $g) {
+                    $row = null;
+                    $g_total = 0;
+                    $g_correct = 0;
+                    foreach ($pred_test_report as $r) {
+                        if (in_array((int)$r['cat_id'], $g['cat_ids'])) {
+                            if (!$row) {
+                                $row = $r;
+                            }
+                            $g_total += (int)$r['total_questions'];
+                            $g_correct += (int)$r['correct_answers'];
+                        }
+                    }
+                    if (!$row) {
+                        continue;
+                    }
+                    $row['cat_id'] = $key;
+                    $row['total_questions'] = $g_total;
+                    $row['correct_answers'] = $g_correct;
+                    $row['score'] = computeShsatSectionScaledScore($g_correct, $g_total);
+                    $grouped_report[$g['category_name']] = $row;
+                }
+                $pred_test_report = $grouped_report;
+
+                if (isset($shsat_groups['cat_to_group'][$_GET['lesson_id']])) {
+                    $_GET['lesson_id'] = $shsat_groups['cat_to_group'][$_GET['lesson_id']];
+                    $review_cat_ids = $shsat_groups['groups'][$_GET['lesson_id']]['cat_ids'];
+                }
+            }
+            $data['review_cat_ids'] = $review_cat_ids;
+
 			$data['pred_cat_name']=$pred_cat_name;
 			$data['pred_test_report']=$pred_test_report;
              $total=getFldValueById("result","total_questions",array("user_id"=>$_GET['student_id'],"Predic_test_id"=>$_GET['cat_id'], "result_id"=>$_GET['result_id'], "pred_set_id"=>$pred_set_id));
@@ -168,11 +205,16 @@ switch($_GET['result'])
 			$cat_id=$_GET['lesson_id'];
 		
 			$data['cat_name']=getFldValueByid("category","category_name",array("cat_id"=>$cat_id));
+			if ($shsat_groups && isset($shsat_groups['groups'][$cat_id])) {
+			    $data['cat_name'] = $shsat_groups['groups'][$cat_id]['category_name'];
+			}
 		
 			$data['cat_id']=$cat_id;
 
 			$data['option_no']=5;
 			
+			// Review questions of each backend category in this section (one, except SHSAT ELA).
+			foreach ($review_cat_ids as $cat_id) {
 			if(in_array($cat_id, $data['story_question']))
 			{
                 $cat_result_id = getFldValueByid("result","result_id",array("parent_id"=>$_GET['result_id'], "Predic_test_id"=>$_GET['cat_id'], "cat_id"=>$cat_id));	
@@ -206,6 +248,7 @@ switch($_GET['result'])
                     $my_answers[$d['qid']]=$d['user_ans'];
 				}
 			}	
+			} // foreach $review_cat_ids
 		    
 		    $data['story_list']=$story_list;
 		    $data['questions']=$questions;
@@ -223,6 +266,9 @@ switch($_GET['result'])
 		case "progress-report":
 		    
             $_SESSION['test_id']=getFldValueById("subscription","course_id",array("user_id"=>$_GET['student_id']));
+
+            // SHSAT also saves English/Math section rows under each result; list only the overall result.
+            $shsat_parent_only = isShsatCourseId($_SESSION['test_id']) ? array("ifnull(parent_id,0)" => 0) : array();
         
 		    $result=[];
             $lesson_list=[];
@@ -283,7 +329,7 @@ switch($_GET['result'])
                                 $total_cat++;
                             }
                             $data['pred_cats']=$pred_cats;
-                            $total_results=getTotalRow("result",array("cat_id"=>$_GET['cat_id'],"Predic_test_id"=>$_GET['cat_id'],"user_id"=>$_GET['student_id']));
+                            $total_results=getTotalRow("result",array("cat_id"=>$_GET['cat_id'],"Predic_test_id"=>$_GET['cat_id'],"user_id"=>$_GET['student_id']) + $shsat_parent_only);
                         }
 
                         if($total_results>5)
@@ -298,7 +344,7 @@ switch($_GET['result'])
                         if($_SESSION['test_id'] == 27 && $_GET['cat_id']==23){
                             $data['result']=getQuery("result","*",array("cat_id"=>$_GET['cat_id'],"Predic_test_id"=>$_GET['cat_id'],"user_id"=>$_GET['student_id'],"score!"=>-1,"pred_name"=>"Full ASVAB"),"result_id",$limit);
                         }else{
-                            $data['result']=getQuery("result","*",array("cat_id"=>$_GET['cat_id'],"Predic_test_id"=>$_GET['cat_id'],"user_id"=>$_GET['student_id'],"score!"=>-1),"result_id",$limit);
+                            $data['result']=getQuery("result","*",array("cat_id"=>$_GET['cat_id'],"Predic_test_id"=>$_GET['cat_id'],"user_id"=>$_GET['student_id'],"score!"=>-1) + $shsat_parent_only,"result_id",$limit);
                         }
 
                         $data['pred_result_total']=$total_results;

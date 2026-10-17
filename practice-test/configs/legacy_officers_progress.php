@@ -260,7 +260,7 @@ function legacyMapLessonRow($row, $catalog)
     );
 }
 
-function legacyMapPredictionListItem($row, $catalog, $courseId, $userName)
+function legacyMapPredictionListItem($row, $catalog, $courseId, $userName, $user = array())
 {
     $prediction = legacyResolvePrediction($catalog, $row);
     $predId = $prediction ? (int)$prediction['Predic_test_id'] : 0;
@@ -293,6 +293,7 @@ function legacyMapPredictionListItem($row, $catalog, $courseId, $userName)
         $feedback = buildPredictionScoreFeedback((int)$courseId, $score, array(
             'pred_test_id' => $predId,
             'pred_name' => $predName,
+            'user' => $user,
         ));
         if ($feedback !== null) {
             $item['score_feedback'] = $feedback;
@@ -336,7 +337,7 @@ function mergeLegacyOfficersIntoProgressReport(&$response, $user, $courseId, $us
             if (!is_array($row)) {
                 continue;
             }
-            $item = legacyMapPredictionListItem($row, $catalog, $courseId, $userName);
+            $item = legacyMapPredictionListItem($row, $catalog, $courseId, $userName, $user);
             if ($item) {
                 $response['prediction-test'][] = $item;
             }
@@ -614,6 +615,7 @@ function legacyTryPredictionTestResult(&$response, $user, $courseId, $userName, 
         $feedback = buildPredictionScoreFeedback((int)$courseId, $loaded['score'], array(
             'pred_test_id' => $predId,
             'pred_name' => isset($response['prediction_test']['test_name']) ? $response['prediction_test']['test_name'] : '',
+            'user' => $user,
         ));
         if ($feedback !== null) {
             $report['score_feedback'] = $feedback;

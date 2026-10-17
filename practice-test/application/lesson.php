@@ -9,8 +9,8 @@ if ($_SESSION['status'] == "N") {
 
 if ($_SERVER['REQUEST_URI'] == "/practice-test/lesson/84-246-lesson-1") {
 
-    header("Location: " . $configs['vpath'] . "lesson/84-246-lesson-1/homework");
-    exit;
+	header("Location: " . $configs['vpath'] . "lesson/84-246-lesson-1/homework");
+	exit;
 }
 
 $option_no = 5;
@@ -206,13 +206,6 @@ switch ($_GET['in']) {
 				// expose to template
 				$data['viewed_global_ord'] = $viewed_global_ord;
 
-
-
-
-
-
-
-
 				$storyok = [];
 				foreach ($data['qlist'] as $d) {
 					$tn = getTotalRow("homework_view", array("story_id" => $d['story_id'], "user_id" => $_SESSION['user_id'], "lesson_id" => $_GET['lesson_id'], "course_id" => $_SESSION['test_id']));
@@ -224,7 +217,7 @@ switch ($_GET['in']) {
 					}
 				}
 				$data['storyok'] = $storyok;
-				
+
 
 				$data['total'] = getTotalRowsByJoin(array("lesson_questions as l", "question as q"), array("l.lesson_id" => (int)$_GET['lesson_id'], "l.cat_id" => $_GET['cat_id'], "l.HW" => 1, "l.course_id" => $_SESSION['test_id'], "q.story_id >" => 0), array("q.qid" => "l.qid"));
 
@@ -244,11 +237,12 @@ switch ($_GET['in']) {
 							$_GET['home_limit'] = $ord;
 						}
 					}
-				} else {
+				} 
+				else {
 					$data['story_list'] = getQuery("homework_story", "story_id,ord", array("lesson_id" => $_GET['lesson_id'], "ord" => $_GET['home_limit'], "grade" => $_SESSION['test_id']));
 					$_GET['home_limit_sr'] = (int)getFldValueById("homework_story", "sum(qno)", ["lesson_id" => $_GET['lesson_id'], "ord < " => $_GET['home_limit'], "grade" => $_SESSION['test_id']]);
 				}
-$data['testing'] = $_GET['home_limit'];
+				$data['testing'] = $_GET['home_limit'];
 				$story = array();
 				$homework_list = [];
 
@@ -260,17 +254,9 @@ $data['testing'] = $_GET['home_limit'];
 				$data['story'] = $story;
 				$data['homework_list'] = $homework_list;
 
-
-
-
-
-
-
-
-
-
 				$data['homework_paging'] = homework_paging($data['story_total'], (int)$_GET['home_limit'], $_GET['cat_id'], $_GET['lesson_id'], $_GET['name']);
-			} else {
+			} 
+			else {
 				if ($_GET['cat_id'] == -93) {
 					$data['home_list'] = getQueryByJoin(array("questions as q", "question_answer as qa"), "q.*,qa.*", array("q.lesson_id" => (int)$_GET['lesson_id'], "q.cat_id in " => "(47,57)", "q.qtype" => 2, "q.status" => "Y"), array("qa.question_id" => "q.id"), 'q.id');
 
@@ -355,40 +341,41 @@ $data['testing'] = $_GET['home_limit'];
 
 				$data['homework_paging'] = homework_paging($data['total'], (int)$_GET['home_limit'], $_GET['cat_id'], $_GET['lesson_id'], $_GET['name']);
 			}
-		} else {
+		} 
+		// else {
 
-			echo  "lesson id missing";
-			exit;
-		}
-
-
-		if (!in_array($_GET['cat_id'], $data['story_question'])) {
-			$viewed_homelist = getQuery("homework_view", "*", array("user_id" => $_SESSION['user_id'], "lesson_id" => $_GET['lesson_id'], "course_id" => $_SESSION['test_id']));
-
-			$home_alist = [];
-			foreach ($viewed_homelist as $a) {
-				$home_alist[] = $a['question_id'];
-			}
-
-			$data['home_alist'] = $home_alist;
-		}
-
-		$data['pending'] = $data['total'] - $data['homework_total'];
-		$green = round(($data['homework_total'] / $data['total']) * 100);
-		$yellow = round(($data['pending'] / $data['total']) * 100);
-		$data['style'] = '';
+		// 	echo  "lesson id missing";
+		// 	exit;
+		// }
 
 
-		if ($data['homework_total'] &&  $data['pending']) {
-			$data['msg'] = "<table class='table'><tr><td style='background-color:green;color:#fff' width='" . $green . "%'>" . $data['homework_total'] . "</td><td style='background-color:yellow;color:#111' width='" . $yellow . "%'>" . $data['pending'] . "</td></tr></table>";
-		}
-		if ($data['total'] && $data['homework_total'] >= $data['total'] && !$data['pending']) {
-			$data['msg'] = "<table class='table'><tr><td style='background-color:green;color:#fff' width='" . $green . "%'>All checked.</td></tr></table>";
-			$data['style'] = "style='color:green'";
-		}
-		if ($_GET['home_limit'] > $data['total']) {
-			$_GET['home_limit'] = $data['total'];
-		}
+		// if (!in_array($_GET['cat_id'], $data['story_question'])) {
+		// 	$viewed_homelist = getQuery("homework_view", "*", array("user_id" => $_SESSION['user_id'], "lesson_id" => $_GET['lesson_id'], "course_id" => $_SESSION['test_id']));
+
+		// 	$home_alist = [];
+		// 	foreach ($viewed_homelist as $a) {
+		// 		$home_alist[] = $a['question_id'];
+		// 	}
+
+		// 	$data['home_alist'] = $home_alist;
+		// }
+
+		// $data['pending'] = $data['total'] - $data['homework_total'];
+		// $green = round(($data['homework_total'] / $data['total']) * 100);
+		// $yellow = round(($data['pending'] / $data['total']) * 100);
+		// $data['style'] = '';
+
+
+		// if ($data['homework_total'] &&  $data['pending']) {
+		// 	$data['msg'] = "<table class='table'><tr><td style='background-color:green;color:#fff' width='" . $green . "%'>" . $data['homework_total'] . "</td><td style='background-color:yellow;color:#111' width='" . $yellow . "%'>" . $data['pending'] . "</td></tr></table>";
+		// }
+		// if ($data['total'] && $data['homework_total'] >= $data['total'] && !$data['pending']) {
+		// 	$data['msg'] = "<table class='table'><tr><td style='background-color:green;color:#fff' width='" . $green . "%'>All checked.</td></tr></table>";
+		// 	$data['style'] = "style='color:green'";
+		// }
+		// if ($_GET['home_limit'] > $data['total']) {
+		// 	$_GET['home_limit'] = $data['total'];
+		// }
 
 		break;
 
@@ -574,23 +561,23 @@ $data['testing'] = $_GET['home_limit'];
 				$last_ans[$d['qid']] = $d['user_ans'];
 			}
 
-			if($_GET['cat_id']){
+			if ($_GET['cat_id']) {
 				$_POST['cat_id'] = $_GET['cat_id'];
 			}
-			if($_GET['lesson_id']){
+			if ($_GET['lesson_id']) {
 				$_POST['lesson_id'] = $_GET['lesson_id'];
 			}
 
-			if(!$category_name){
+			if (!$category_name) {
 				$category_name = getFldValueById("category", "category_name", array("cat_id" => $_GET['cat_id']));
 			}
 
 			$data['lastexam'] = $lastexam;
 			$data['last_ans'] = $last_ans;
 			if ($data['total']) {
-				$url = $configs['vpath'] . "exam/result/" 
-					. $_POST['cat_id'] . "-" . seo_url($category_name) . "/" 
-					. $_POST['lesson_id'] . "/" 
+				$url = $configs['vpath'] . "exam/result/"
+					. $_POST['cat_id'] . "-" . seo_url($category_name) . "/"
+					. $_POST['lesson_id'] . "/"
 					. $result_id;
 
 				$data['submit'] = "<div class=\"btn btn-success practice-test-submit text-center\" 

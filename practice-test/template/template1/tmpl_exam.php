@@ -117,7 +117,7 @@
 												<li class="alert_msg <?= $class ?>">
 													<a class="pred-nav-tabs answered-cat"
 														href="<?= $configs['vpath'] ?>exam/prediction-test/<?= $_GET['cat_id'] . "-" . $_GET['cat_name'] . "/" . $val['cat_id'] . "-" . $val['shortcode'] ?>">
-														<?= $val['shortcode'] ?> (<?= $val['completed'] ?>/<?= $val['total'] ?>)
+														<?= isset($val['tab_label']) ? $val['tab_label'] : $val['shortcode'] ?> (<?= $val['completed'] ?>/<?= $val['total'] ?>)
 													</a>
 												</li>
 											<?php } ?>
@@ -756,7 +756,7 @@
 										<table class="table table-borderless test_review_table">
 											<?php
 											$i = 0;
-											$key = $cat_id;
+											foreach ((isset($review_cat_ids) ? $review_cat_ids : array($cat_id)) as $key) {
 
 											if (in_array($key, $story_question)) {
 												foreach ($story_list[$key] as $d) {
@@ -915,6 +915,7 @@
 											<?php
 												}
 											}
+											} // foreach $review_cat_ids
 											?>
 										</table>
 									</div>
@@ -1710,6 +1711,15 @@
 														<table class="table table-borderless prediction-test-table">
 
 															<?php
+															// SHSAT English Language Arts shows all of its backend parts on one page.
+															foreach ((isset($pred_render_cat_ids) ? $pred_render_cat_ids : array($c)) as $c) {
+															if (!empty($pred_section_names[$c])) { ?>
+																<tr class="pred-section-header">
+																	<td colspan="3" style="background:#f0f4fc; border-top:3px solid #e6900a; padding:12px 15px;">
+																		<h4 style="margin:0; font-weight:bold;"><?= htmlspecialchars($pred_section_names[$c]) ?></h4>
+																	</td>
+																</tr>
+															<?php }
 															if (in_array($c, $story_question)) { ?>
 
 																<?php
@@ -1841,7 +1851,8 @@
 																?>
 
 															<?php
-															} 	?>
+															}
+															} // foreach $pred_render_cat_ids 	?>
 
 														</table>
 													</div>

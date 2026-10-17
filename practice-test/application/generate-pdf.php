@@ -1,6 +1,7 @@
 <?php
 
 include("../configs/autoload.php");
+include_once("../configs/prediction_score_courses.php");
 chklogin(str_replace("/practice-test/","",$_SERVER['REQUEST_URI']));
 if($_SESSION['status']=="N")
 {
@@ -180,7 +181,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $total=$total+$p['number_of_questions'];
                     $total_cat++;
                 }
-                $total_results=getTotalRow("result",array("cat_id"=>$cat_id,"Predic_test_id"=>$cat_id,"user_id"=>$user_id));
+                // SHSAT also saves English/Math section rows under each result; list only the overall result.
+                $shsat_parent_only = isShsatCourseId($test_id) ? array("ifnull(parent_id,0)" => 0) : array();
+                $total_results=getTotalRow("result",array("cat_id"=>$cat_id,"Predic_test_id"=>$cat_id,"user_id"=>$user_id) + $shsat_parent_only);
 
                 if($total_results>5)
                 {
@@ -190,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 {
                     $limit=5;
                 }
-                $results=getQuery("result","*",array("cat_id"=>$cat_id,"Predic_test_id"=>$cat_id,"user_id"=>$user_id,"score!"=>-1),"result_id",$limit);
+                $results=getQuery("result","*",array("cat_id"=>$cat_id,"Predic_test_id"=>$cat_id,"user_id"=>$user_id,"score!"=>-1) + $shsat_parent_only,"result_id",$limit);
                 
                 foreach($results as $d) 
                 {

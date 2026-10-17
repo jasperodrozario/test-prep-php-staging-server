@@ -1,19 +1,18 @@
 <form method="post" id="cat_form" action="<?php echo basename($_SERVER['PHP_SELF'], ".php"); ?>" enctype="multipart/form-data">
     <input type="hidden" name="cat_id" value="<?php echo $_GET['cat_id'] ?>">
     <input type="hidden" name="backpage" value="<?php echo $_GET['backpage'] ?>">
-    <input type="hidden" name="course_id" value="<?php echo $_GET['course_id'] ?>">
     <table width="100%" border="0" align="center" cellspacing="1" cellpadding="4" class='table table-bordered'>
 
         <tr>
             <td align="left" width=20%>Name</td>
-            <td><input type="text" class='form-control' name='category_name' value="<?php echo $db_value['category_name'] ?>" required></td>
+            <td><input type="text" class='form-control' name='category_name' value="<?php echo htmlspecialchars((string)$db_value['category_name']) ?>" required></td>
         </tr>
 
         <tr>
             <td width="20%">Course Name</td>
             <td>
                 <select name='course_id' size=1 class='form-control' required>
-                    <option value='0'>Select Course</option>
+                    <option value=''>Select Course</option>
                     <?
                     foreach ($course as $dd) {
                         if ($_GET['course_id'] == $dd['course_id']):
@@ -82,7 +81,7 @@
 
         <tr>
             <td align="left">Short Code</td>
-            <td><input type="text" class='form-control' name='shortcode' value="<?php echo $db_value['shortcode'] ?>"></td>
+            <td><input type="text" class='form-control' name='shortcode' value="<?php echo htmlspecialchars((string)$db_value['shortcode']) ?>"></td>
         </tr>
 
         <tr>

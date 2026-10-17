@@ -1,753 +1,240 @@
-<?
+<?php
 include("../common/access.php");
 include("../common/autoload.php");
+include(__DIR__ . "/../../configs/revenue.php");
 
 $data['page_title'] = "Web Analytics";
 $data['breadcrumb'] = array("Web Analytics" => "website-analytics");
 
-// ******* Utility functions *******
+/*
+ * Data sources
+ *   Users          edu_user.reg_date, edu_user.reg_at ("...app..." = app user, "...web..." = web user)
+ *   Logins         edu_login.last_login (one row per user: the most recent login only)
+ *   Subscriptions  edu_subscription (amount > 0 = paid, subscription_date = start date)
+ *
+ * Revenue
+ *   Uses the shared rules in configs/revenue.php: each payment is counted once, in dollars,
+ *   from the ledger that recorded it (Square in cents, app stores in dollars), and Square
+ *   payments by app users count as App revenue.
+ *
+ * Tester accounts (edu_testing_account, set on the Student List page) are excluded from every
+ * figure on this page: users, logins, registrations, subscriptions, courses and revenue.
+ * The check runs at query time, so marking/unmarking applies to past data too.
+ *
+ * All dates are calculated in PHP (America/New_York); MySQL runs in UTC.
+ */
 
-// Calculate growth percentage for current month vs previous month
-function calculateUserGrowth($platform)
+$APP_USER = "u.reg_at LIKE '%app%'";
+$WEB_USER = "u.reg_at LIKE '%web%'";
+$TESTING_USERS = "(SELECT user_id FROM " . $configs['prev'] . "testing_account)";
+$NOT_TESTER = "u.user_id NOT IN $TESTING_USERS"; // for queries on edu_user aliased as u
+
+$today = date('Y-m-d');
+
+// ******* Helpers *******
+
+// Single number from an aggregate query (common.php getDataByWhere)
+function waScalar($row)
 {
-    // Current month users
-
-    $current_count = getTotalRow("user", array("[or]" => "reg_at like '%" . $platform . "%' and MONTH(reg_date) = MONTH(CURDATE()) and YEAR(reg_date) = YEAR(CURDATE())"));
-    $previous_count = getTotalRow("user", array("[or]" => "reg_at like '%" . $platform . "%' and MONTH(reg_date) = MONTH(CURDATE() - INTERVAL 1 MONTH) and YEAR(reg_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)"));
-
-    // Calculate growth percentage
-    if ($previous_count > 0) {
-        $growth = (($current_count - $previous_count) / $previous_count) * 100;
-        return round($growth, 1);
-    }
-
-    return 0;
+	return $row ? (float) $row['total'] : 0;
 }
 
-// ******* End Utility functions *******
+// Daily totals: returns array('Y-m-d' => value) using common.php getQuery() with GROUP BY
+function waDaily($table, $dateExpr, $valueExpr, $where)
+{
+	$out = array();
+	$rr = getQuery($table, "$dateExpr AS d, $valueExpr AS total", $where, "", "", 0, $dateExpr);
+	while ($rr && $row = mysqli_fetch_assoc($rr)) {
+		$out[$row['d']] = (float) $row['total'];
+	}
+	return $out;
+}
 
+// Sum a daily map into the given [start, end] ranges
+function waBucket($daily, $ranges, $decimals = 0)
+{
+	$values = array();
+	foreach ($ranges as $r) {
+		$sum = 0;
+		foreach ($daily as $d => $v) {
+			if ($d >= $r[0] && $d <= $r[1]) $sum += $v;
+		}
+		$values[] = $decimals ? round($sum, $decimals) : (int) $sum;
+	}
+	return $values;
+}
 
-// ******* Start Header Part *******
-$data['total_users'] = getTotalRow("user", array("[or]" => "(reg_at like '%web%' or reg_at like '%app%')"));
-$data['new_users_today'] = getTotalRow("user", array("[or]" => "(reg_at like '%web%' or reg_at like '%app%')", "reg_date" => date("Y-m-d")));
-$data['active_users'] = getTotalRow("login", array("DATE(last_login)" => date("Y-m-d")));
-$data['app_users'] = getTotalRow("user", array("[or]" => "reg_at like '%app%'"));
-$data['web_users'] = getTotalRow("user", array("[or]" => "reg_at like '%web%'"));
+function waGrowth($current, $previous)
+{
+	return $previous > 0 ? round((($current - $previous) / $previous) * 100, 1) : 0;
+}
 
-$app_user_current_count = getTotalRow("user", array("[or]" => "reg_at like '%app%'", "DATE(reg_date)" => date("Y-m-d")));
-$data['app_growth'] = calculateUserGrowth('app');
-$data['web_growth'] = calculateUserGrowth('web');
-$data['new_app_users_today'] = getTotalRow("user", array("[or]" => "reg_at like '%app%'", "reg_date" => date("Y-m-d")));
-$data['new_web_users_today'] = getTotalRow("user", array("[or]" => "reg_at like '%web%'", "reg_date" => date("Y-m-d")));
+// ******* Period ranges (shared by all charts) *******
 
-$currentMonth = date('n');
-$currentYear = date('Y');
-$prevMonth = date('n', strtotime('-1 month'));
-$prevYear  = date('Y', strtotime('-1 month'));
-
-$app_revenue_current_month = (int)getDataByJoin(
-    array("subscription as s", "user as u"),
-    "SUM(s.amount) as total",
-    "MONTH(s.subscription_date) = $currentMonth AND YEAR(s.subscription_date) = $currentYear AND s.amount > 0 AND u.reg_at like '%app%' AND s.user_id = u.user_id"
-)['total'];
-$app_revenue_prev_month = (int)getDataByJoin(
-    array("subscription as s", "user as u"),
-    "SUM(s.amount) as total",
-    "MONTH(s.subscription_date) = $prevMonth AND YEAR(s.subscription_date) = $prevYear AND s.amount > 0 AND u.reg_at like '%app%' AND s.user_id = u.user_id"
-)['total'];
-
-$web_revenue_current_month = (int)getDataByWhere(
-    "square_payments",
-    "SUM(amount) as total",
-    "MONTH(updated_at) = $currentMonth AND YEAR(updated_at) = $currentYear AND amount > 0"
-)['total'];
-$web_revenue_current_month = $web_revenue_current_month/100;
-$web_revenue_prev_month = (int)getDataByWhere(
-    "square_payments",
-    "SUM(amount) as total",
-    "MONTH(updated_at) = $prevMonth AND YEAR(updated_at) = $prevYear AND amount > 0"
-)['total'];
-$web_revenue_prev_month = $web_revenue_prev_month/100;
-
-$data['this_month_revenue'] = $app_revenue_current_month + $web_revenue_current_month;
-$data['last_month_revenue'] = $app_revenue_prev_month + $web_revenue_prev_month;
-$data['revenue_growth'] = $data['last_month_revenue'] > 0 ? round((($data['this_month_revenue'] - $data['last_month_revenue']) / $data['last_month_revenue']) * 100, 1) : 0;
-
-$data['total_subscriptions'] = getTotalRow("subscription", array("MONTH(subscription_date)" => $currentMonth, "YEAR(subscription_date)" => $currentYear, "amount >" => 0));
-// ******* End Header Part *******
-
-
-// ******* Start User Engagement Chart Data *******
-
-// 7 Days Data
-$labels7d = [];
-$dates7d = [];
+$monthStart = date('Y-m-01');
+$periods = array('7d' => array(), '10w' => array(), '12m' => array(), '5y' => array());
+$labels  = array('7d' => array(), '10w' => array(), '12m' => array(), '5y' => array());
 
 for ($i = 6; $i >= 0; $i--) {
-    $date = date('Y-m-d', strtotime("-$i days"));
-    $dates7d[] = $date;
-    $labels7d[] = date('d M', strtotime($date)); // Mon, Tue...
+	$d = date('Y-m-d', strtotime("$today -$i days"));
+	$periods['7d'][] = array($d, $d);
+	$labels['7d'][]  = date('d M', strtotime($d));
 }
-
-$loggedIn7d = [];
-$registered7d = [];
-$subscribed7d = [];
-
-foreach ($dates7d as $date) {
-    $count = getTotalRow("login", [
-        "DATE(last_login)" => $date
-    ]);
-    $loggedIn7d[] = $count;
-
-    $count = getTotalRow("user", [
-        "reg_date" => $date
-    ]);
-    $registered7d[] = $count;
-
-    $count = getTotalRow("subscription", [
-        "subscription_date" => $date,
-        "amount >" => 0
-    ]);
-
-    $subscribed7d[] = $count;
-}
-
-// 10 Weeks Data
-$labels10w = [];
-$loggedIn10w = [];
-$registered10w = [];
-$subscribed10w = [];
-
 for ($i = 9; $i >= 0; $i--) {
-
-    $start = date('Y-m-d', strtotime("-" . ($i * 7 + 6) . " days"));
-    $end   = date('Y-m-d', strtotime("-" . ($i * 7) . " days"));
-
-    $labels10w[] = "W" . (10 - $i);
-
-    // LOGGED IN
-    $loggedIn10w[] = (int)getDataByWhere(
-        "login",
-        "COUNT(*) as total",
-        "DATE(last_login) BETWEEN '$start' AND '$end'"
-    )['total'];
-
-    // REGISTERED
-    $registered10w[] = (int)getDataByWhere(
-        "user",
-        "COUNT(*) as total",
-        "reg_date BETWEEN '$start' AND '$end'"
-    )['total'];
-
-    // SUBSCRIBED
-    $subscribed10w[] = (int)getDataByWhere(
-        "subscription",
-        "COUNT(*) as total",
-        "subscription_date BETWEEN '$start' AND '$end' AND amount > 0"
-    )['total'];
+	$periods['10w'][] = array(date('Y-m-d', strtotime("$today -" . ($i * 7 + 6) . " days")), date('Y-m-d', strtotime("$today -" . ($i * 7) . " days")));
+	$labels['10w'][]  = "W" . (10 - $i);
 }
-
-// 12 Months Data
-$labels12m = [];
-
-$loggedIn12m = [];
-$registered12m = [];
-$subscribed12m = [];
-
 for ($i = 11; $i >= 0; $i--) {
-
-    $start = date('Y-m-01', strtotime("-$i month"));
-    $end   = date('Y-m-t', strtotime($start));
-
-    $labels12m[] = date('M Y', strtotime($start));
-
-    // LOGGED IN
-    $loggedIn12m[] = (int)getDataByWhere(
-        "login",
-        "COUNT(*) as total",
-        "DATE(last_login) BETWEEN '$start' AND '$end'"
-    )['total'];
-
-    // REGISTERED
-    $registered12m[] = (int)getDataByWhere(
-        "user",
-        "COUNT(*) as total",
-        "reg_date BETWEEN '$start' AND '$end'"
-    )['total'];
-
-    // SUBSCRIBED
-    $subscribed12m[] = (int)getDataByWhere(
-        "subscription",
-        "COUNT(*) as total",
-        "subscription_date BETWEEN '$start' AND '$end' AND amount > 0"
-    )['total'];
+	$start = date('Y-m-01', strtotime("$monthStart -$i month")); // anchored on the 1st so months never skip
+	$periods['12m'][] = array($start, date('Y-m-t', strtotime($start)));
+	$labels['12m'][]  = date('M Y', strtotime($start));
 }
-
-// 5 Years Data
-$labels5y = [];
-
-$loggedIn5y = [];
-$registered5y = [];
-$subscribed5y = [];
-
 for ($i = 4; $i >= 0; $i--) {
-
-    $year = date('Y', strtotime("-$i year"));
-    $start = $year . "-01-01";
-    $end   = $year . "-12-31";
-
-    $labels5y[] = $year;
-
-    // LOGGED IN
-    $loggedIn5y[] = (int)getDataByWhere(
-        "login",
-        "COUNT(*) as total",
-        "DATE(last_login) BETWEEN '$start' AND '$end'"
-    )['total'];
-
-    // REGISTERED
-    $registered5y[] = (int)getDataByWhere(
-        "user",
-        "COUNT(*) as total",
-        "reg_date BETWEEN '$start' AND '$end'"
-    )['total'];
-
-    // SUBSCRIBED
-    $subscribed5y[] = (int)getDataByWhere(
-        "subscription",
-        "COUNT(*) as total",
-        "subscription_date BETWEEN '$start' AND '$end' AND amount > 0"
-    )['total'];
+	$year = date('Y') - $i;
+	$periods['5y'][] = array("$year-01-01", "$year-12-31");
+	$labels['5y'][]  = (string) $year;
 }
 
-$data['user_engagement_chart_data'] = [
-    '7d' => [
-        'labels' => $labels7d,
-        'loggedIn' => $loggedIn7d,
-        'registered' => $registered7d,
-        'subscribed' => $subscribed7d
-    ],
-    '10w' => [
-        'labels' => $labels10w,
-        'loggedIn' => $loggedIn10w,
-        'registered' => $registered10w,
-        'subscribed' => $subscribed10w
-    ],
-    '12m' => [
-        'labels' => $labels12m,
-        'loggedIn' => $loggedIn12m,
-        'registered' => $registered12m,
-        'subscribed' => $subscribed12m
-    ],
-    '5y' => [
-        'labels' => $labels5y,
-        'loggedIn' => $loggedIn5y,
-        'registered' => $registered5y,
-        'subscribed' => $subscribed5y
-    ]
-];
-// ******* End User Engagement Chart Data *******
+$rangeStart = $periods['5y'][0][0];
+$rangeEnd   = $today;
 
+// This month so far vs the same days of last month
+$prevMonthStart  = date('Y-m-01', strtotime("$monthStart -1 month"));
+$prevMonthEndMtd = min(date('Y-m-d', strtotime("$prevMonthStart +" . (date('j') - 1) . " days")), date('Y-m-t', strtotime($prevMonthStart)));
 
-// ******* Start Revenue Chart Data *******
+// ******* Daily data (one grouped query per metric) *******
 
-// 7 Days Data
-$totalRevenue7d = [];
-$appRevenue7d = [];
-$webRevenue7d = [];
+$userRange = "u.reg_date BETWEEN '$rangeStart' AND '$rangeEnd' AND $NOT_TESTER";
+$subRange  = "s.subscription_date BETWEEN '$rangeStart' AND '$rangeEnd' AND $NOT_TESTER";
 
-for ($i = 6; $i >= 0; $i--) {
+$dailyLoggedIn   = waDaily("login", "DATE(last_login)", "COUNT(*)", "last_login BETWEEN '$rangeStart 00:00:00' AND '$rangeEnd 23:59:59' AND user_id NOT IN $TESTING_USERS");
+$dailyRegistered = waDaily("user as u", "u.reg_date", "COUNT(*)", $userRange);
+$dailyAppReg     = waDaily("user as u", "u.reg_date", "COUNT(*)", "$userRange AND $APP_USER");
+$dailyWebReg     = waDaily("user as u", "u.reg_date", "COUNT(*)", "$userRange AND $WEB_USER");
 
-    $date = date('Y-m-d', strtotime("-$i days"));
+$subJoin = "subscription as s INNER JOIN " . $configs['prev'] . "user as u ON u.user_id = s.user_id";
+$dailySubscribed = waDaily($subJoin, "s.subscription_date", "COUNT(*)", "$subRange AND s.amount > 0");
+$dailyAppSub     = waDaily($subJoin, "s.subscription_date", "COUNT(*)", "$subRange AND s.amount > 0 AND $APP_USER");
+$dailyWebSub     = waDaily($subJoin, "s.subscription_date", "COUNT(*)", "$subRange AND s.amount > 0 AND $WEB_USER");
 
-    // APP REVENUE
-    $tmpAppRevenue7d = (int)getDataByJoin(
-        array("subscription as s", "user as u"),
-        "SUM(s.amount) as total",
-        "DATE(s.subscription_date) = '$date'
-         AND s.amount > 0
-         AND u.reg_at LIKE '%app%'
-         AND s.user_id = u.user_id"
-    )['total'];
+// Revenue in dollars: app as stored, web converted from cents
+// App = app-store purchases + Square payments made by app users; Web = all other Square payments
+$dailyAppRevenue = waDaily(revenueAppStoreFrom(), revenueAppStoreDate(), "SUM(" . revenueAppStoreAmount() . ")", revenueAppStoreWhere($rangeStart, $rangeEnd));
+foreach (waDaily(revenueSquareFrom(), revenueSquareDate(), "SUM(" . revenueSquareAmount() . ")", revenueSquareWhere('app', $rangeStart, $rangeEnd)) as $d => $v) {
+	$dailyAppRevenue[$d] = ($dailyAppRevenue[$d] ?? 0) + $v;
+}
+$dailyWebRevenue = waDaily(revenueSquareFrom(), revenueSquareDate(), "SUM(" . revenueSquareAmount() . ")", revenueSquareWhere('web', $rangeStart, $rangeEnd));
 
-    // WEB REVENUE
-    $tmpWebRevenue7d = (int)getDataByWhere(
-        "square_payments",
-        "SUM(amount) as total",
-        "DATE(updated_at) = '$date'
-         AND amount > 0"
-    )['total'];
-    $tmpWebRevenue7d = $tmpWebRevenue7d/100;
+// ******* Header cards *******
 
-    // TOTAL REVENUE
-    $totalRevenue7d[] = $tmpAppRevenue7d + $tmpWebRevenue7d;
-    $appRevenue7d[] = $tmpAppRevenue7d;
-    $webRevenue7d[] = $tmpWebRevenue7d;
+$data['total_users'] = (int) waScalar(getDataByWhere("user as u", "COUNT(*) AS total", "($APP_USER OR $WEB_USER) AND $NOT_TESTER"));
+$data['app_users']   = (int) waScalar(getDataByWhere("user as u", "COUNT(*) AS total", "$APP_USER AND $NOT_TESTER"));
+$data['web_users']   = (int) waScalar(getDataByWhere("user as u", "COUNT(*) AS total", "$WEB_USER AND $NOT_TESTER"));
+
+$data['new_app_users_today'] = (int) ($dailyAppReg[$today] ?? 0);
+$data['new_web_users_today'] = (int) ($dailyWebReg[$today] ?? 0);
+$data['new_users_today']     = $data['new_app_users_today'] + $data['new_web_users_today'];
+$data['active_users']        = (int) ($dailyLoggedIn[$today] ?? 0);
+
+$thisMonth = array(array($monthStart, $today));
+$lastMonth = array(array($prevMonthStart, $prevMonthEndMtd));
+
+$data['app_growth'] = waGrowth(waBucket($dailyAppReg, $thisMonth)[0], waBucket($dailyAppReg, $lastMonth)[0]);
+$data['web_growth'] = waGrowth(waBucket($dailyWebReg, $thisMonth)[0], waBucket($dailyWebReg, $lastMonth)[0]);
+
+$data['this_month_revenue'] = round(waBucket($dailyAppRevenue, $thisMonth, 2)[0] + waBucket($dailyWebRevenue, $thisMonth, 2)[0], 2);
+$data['last_month_revenue'] = round(waBucket($dailyAppRevenue, $lastMonth, 2)[0] + waBucket($dailyWebRevenue, $lastMonth, 2)[0], 2); // same days last month
+$data['revenue_growth']     = waGrowth($data['this_month_revenue'], $data['last_month_revenue']);
+
+$data['total_subscriptions'] = waBucket($dailySubscribed, $thisMonth)[0];
+
+// ******* Charts *******
+
+$user_engagement_chart_data = array();
+$revenue_chart_data = array();
+$app_vs_web_chart_data = array();
+
+foreach ($periods as $key => $ranges) {
+	$user_engagement_chart_data[$key] = array(
+		'labels'     => $labels[$key],
+		'loggedIn'   => waBucket($dailyLoggedIn, $ranges),
+		'registered' => waBucket($dailyRegistered, $ranges),
+		'subscribed' => waBucket($dailySubscribed, $ranges)
+	);
+
+	$app = waBucket($dailyAppRevenue, $ranges, 2);
+	$web = waBucket($dailyWebRevenue, $ranges, 2);
+	$total = array();
+	foreach ($app as $i => $v) {
+		$total[] = round($v + $web[$i], 2);
+	}
+	$revenue_chart_data[$key] = array(
+		'labels' => $labels[$key],
+		'total'  => $total,
+		'app'    => $app,
+		'web'    => $web
+	);
+
+	$app_vs_web_chart_data[$key] = array(
+		'labels'         => $labels[$key],
+		'app_registered' => waBucket($dailyAppReg, $ranges),
+		'app_subscribed' => waBucket($dailyAppSub, $ranges),
+		'web_registered' => waBucket($dailyWebReg, $ranges),
+		'web_subscribed' => waBucket($dailyWebSub, $ranges)
+	);
 }
 
-// 10 Weeks Data
-$totalRevenue10w = [];
-$appRevenue10w = [];
-$webRevenue10w = [];
+$data['user_engagement_chart_data'] = $user_engagement_chart_data;
+$data['revenue_chart_data']         = $revenue_chart_data;
+$data['app_vs_web_chart_data']      = $app_vs_web_chart_data;
 
-for ($i = 9; $i >= 0; $i--) {
+// ******* Course chart (Week / Month / Year = last 7 / 30 / 365 days) *******
 
-    // Week range (7-day block)
-    $start = date('Y-m-d', strtotime("-" . ($i * 7 + 6) . " days"));
-    $end   = date('Y-m-d', strtotime("-" . ($i * 7) . " days"));
-
-    // APP REVENUE (subscription table)
-    $tmpAppRevenue10w = (int)getDataByJoin(
-        array("subscription as s", "user as u"),
-        "SUM(s.amount) as total",
-        "DATE(s.subscription_date) BETWEEN '$start' AND '$end'
-         AND s.amount > 0
-         AND u.reg_at LIKE '%app%'
-         AND s.user_id = u.user_id"
-    )['total'];
-
-    // WEB REVENUE (square_payments table)
-    $tmpWebRevenue10w = (int)getDataByWhere(
-        "square_payments",
-        "SUM(amount) as total",
-        "DATE(updated_at) BETWEEN '$start' AND '$end'
-         AND amount > 0"
-    )['total'];
-    $tmpWebRevenue10w = $tmpWebRevenue10w/100;
-
-    // TOTAL REVENUE
-    $totalRevenue10w[] = $tmpAppRevenue10w + $tmpWebRevenue10w;
-    $appRevenue10w[] = $tmpAppRevenue10w;
-    $webRevenue10w[] = $tmpWebRevenue10w;
+$courses = array();
+$rr = getQuery("course as c INNER JOIN " . $configs['prev'] . "course_group as g ON g.group_id = c.group_id", "c.course_id, c.course_name", "1=1", "g.ord, c.ord");
+while ($rr && $row = mysqli_fetch_assoc($rr)) {
+	$courses[] = $row;
 }
 
-// 12 Months Data
-$totalRevenue12m = [];
-$appRevenue12m = [];
-$webRevenue12m = [];
+$courseWindows = array('all' => 6, 'top' => 30, 'bottom' => 365);
+$course_chart_data = array();
 
-for ($i = 11; $i >= 0; $i--) {
+foreach ($courseWindows as $key => $days) {
+	$start = date('Y-m-d', strtotime("$today -$days days"));
 
-    $start = date('Y-m-01 00:00:00', strtotime("-$i month"));
-    $end   = date('Y-m-t 23:59:59', strtotime("-$i month"));
+	// Enrolled = users who registered in the window, by their course
+	$enrolled = array();
+	$rr = getQuery($subJoin, "s.course_id, COUNT(*) AS total", "u.reg_date BETWEEN '$start' AND '$today' AND $NOT_TESTER", "", "", 0, "s.course_id");
+	while ($rr && $row = mysqli_fetch_assoc($rr)) {
+		$enrolled[$row['course_id']] = (int) $row['total'];
+	}
 
-    // APP REVENUE (subscription)
-    $tmpAppRevenue12m = (int)getDataByJoin(
-        array("subscription as s", "user as u"),
-        "SUM(s.amount) as total",
-        "s.subscription_date BETWEEN '$start' AND '$end'
-         AND s.amount > 0
-         AND u.reg_at LIKE '%app%'
-         AND s.user_id = u.user_id"
-    )['total'];
+	// Subscribed = paid subscriptions that started in the window
+	$subscribed = array();
+	$rr = getQuery($subJoin, "s.course_id, COUNT(*) AS total", "s.subscription_date BETWEEN '$start' AND '$today' AND s.amount > 0 AND $NOT_TESTER", "", "", 0, "s.course_id");
+	while ($rr && $row = mysqli_fetch_assoc($rr)) {
+		$subscribed[$row['course_id']] = (int) $row['total'];
+	}
 
-    // WEB REVENUE (square_payments if applicable)
-    $tmpWebRevenue12m = (int)getDataByWhere(
-        "square_payments",
-        "SUM(amount) as total",
-        "updated_at BETWEEN '$start' AND '$end'
-         AND amount > 0"
-    )['total'];
-    $tmpWebRevenue12m = $tmpWebRevenue12m/100;
-
-    // TOTAL
-    $totalRevenue12m[] = $tmpAppRevenue12m + $tmpWebRevenue12m;
-    $appRevenue12m[] = $tmpAppRevenue12m;
-    $webRevenue12m[] = $tmpWebRevenue12m;
+	$course_chart_data[$key] = array('labels' => array(), 'enrolled' => array(), 'subscribed' => array());
+	foreach ($courses as $c) {
+		$course_chart_data[$key]['labels'][]     = $c['course_name'];
+		$course_chart_data[$key]['enrolled'][]   = $enrolled[$c['course_id']] ?? 0;
+		$course_chart_data[$key]['subscribed'][] = $subscribed[$c['course_id']] ?? 0;
+	}
 }
-
-// 5 Years Data
-$totalRevenue5y = [];
-$appRevenue5y = [];
-$webRevenue5y = [];
-
-for ($i = 4; $i >= 0; $i--) {
-
-    $year = date('Y', strtotime("-$i year"));
-
-    $start = $year . "-01-01 00:00:00";
-    $end   = $year . "-12-31 23:59:59";
-
-    // APP REVENUE (subscription)
-    $tmpAppRevenue5y = (int)getDataByJoin(
-        array("subscription as s", "user as u"),
-        "SUM(s.amount) as total",
-        "s.subscription_date BETWEEN '$start' AND '$end'
-         AND s.amount > 0
-         AND u.reg_at LIKE '%app%'
-         AND s.user_id = u.user_id"
-    )['total'];
-
-    // WEB REVENUE (square_payments)
-    $tmpWebRevenue5y = (int)getDataByWhere(
-        "square_payments",
-        "SUM(amount) as total",
-        "updated_at BETWEEN '$start' AND '$end'
-         AND amount > 0"
-    )['total'];
-    $tmpWebRevenue5y = $tmpWebRevenue5y/100;
-
-    // TOTAL
-    $totalRevenue5y[] = $tmpAppRevenue5y + $tmpWebRevenue5y;
-    $appRevenue5y[] = $tmpAppRevenue5y;
-    $webRevenue5y[] = $tmpWebRevenue5y;
-}
-
-$data['revenue_chart_data'] = [
-    '7d' => [
-        'labels' => $labels7d,
-        'total' => $totalRevenue7d,
-        'app' => $appRevenue7d,
-        'web' => $webRevenue7d
-    ],
-    '10w' => [
-        'labels' => $labels10w,
-        'total' => $totalRevenue10w,
-        'app' => $appRevenue10w,
-        'web' => $webRevenue10w
-    ],
-    '12m' => [
-        'labels' => $labels12m,
-        'total' => $totalRevenue12m,
-        'app' => $appRevenue12m,
-        'web' => $webRevenue12m
-    ],
-    '5y' => [
-        'labels' => $labels5y,
-        'total' => $totalRevenue5y,
-        'app' => $appRevenue5y,
-        'web' => $webRevenue5y
-    ]
-];
-// ******* End Revenue Chart Data *******
-
-
-// ******* App vs Web Chart Data *******
-
-// 7 days
-$appRegistered7d = [];
-$appSubscribed7d = [];
-$webRegistered7d = [];
-$webSubscribed7d = [];
-
-for ($i = 6; $i >= 0; $i--) {
-
-    $date = date('Y-m-d', strtotime("-$i days"));
-
-    // APP REGISTERED
-    $appRegistered7d[] = (int)getTotalRow("user", [
-        "[or]" => "reg_at like '%app%'",
-        "reg_date" => $date
-    ]);
-
-    // WEB REGISTERED
-    $webRegistered7d[] = (int)getTotalRow("user", [
-        "[or]" => "reg_at like '%web%'",
-        "reg_date" => $date
-    ]);
-
-    // APP SUBSCRIBED
-    $appSubscribed7d[] = (int)getDataByJoin(
-        ["subscription as s", "user as u"],
-        "COUNT(*) as total",
-        "DATE(s.subscription_date) = '$date'
-         AND s.amount > 0
-         AND s.user_id = u.user_id
-         AND u.reg_at LIKE '%app%'"
-    )['total'];
-
-    // WEB SUBSCRIBED
-    $webSubscribed7d[] = (int)getDataByJoin(
-        ["subscription as s", "user as u"],
-        "COUNT(*) as total",
-        "DATE(s.subscription_date) = '$date'
-         AND s.amount > 0
-         AND s.user_id = u.user_id
-         AND u.reg_at LIKE '%web%'"
-    )['total'];
-}
-
-// 10 weeks
-$appRegistered10w = [];
-$appSubscribed10w = [];
-$webRegistered10w = [];
-$webSubscribed10w = [];
-$labels10w = [];
-
-for ($i = 9; $i >= 0; $i--) {
-
-    $start = date('Y-m-d', strtotime("-" . ($i * 7 + 6) . " days"));
-    $end   = date('Y-m-d', strtotime("-" . ($i * 7) . " days"));
-
-    $labels10w[] = "W" . (10 - $i);
-
-    // APP REGISTERED
-    $appRegistered10w[] = (int)getDataByWhere("user", "count(*) as total", "reg_at like '%app%' AND DATE(reg_date) BETWEEN '$start' AND '$end'")['total'];
-
-    // WEB REGISTERED
-    $webRegistered10w[] = (int)getDataByWhere("user", "count(*) as total", "reg_at like '%web%' AND DATE(reg_date) BETWEEN '$start' AND '$end'")['total'];
-
-    // APP SUBSCRIBED
-    $appSubscribed10w[] = (int)getDataByJoin(
-        ["subscription as s", "user as u"],
-        "COUNT(*) as total",
-        "DATE(s.subscription_date) BETWEEN '$start' AND '$end'
-         AND s.amount > 0
-         AND s.user_id = u.user_id
-         AND u.reg_at LIKE '%app%'"
-    )['total'];
-
-    // WEB SUBSCRIBED
-    $webSubscribed10w[] = (int)getDataByJoin(
-        ["subscription as s", "user as u"],
-        "COUNT(*) as total",
-        "DATE(s.subscription_date) BETWEEN '$start' AND '$end'
-         AND s.amount > 0
-         AND s.user_id = u.user_id
-         AND u.reg_at LIKE '%web%'"
-    )['total'];
-}
-
-// 12 months
-$appRegistered12m = [];
-$appSubscribed12m = [];
-$webRegistered12m = [];
-$webSubscribed12m = [];
-
-for ($i = 11; $i >= 0; $i--) {
-
-    $start = date('Y-m-01', strtotime("-$i month"));
-    $end   = date('Y-m-t', strtotime($start));
-
-
-    // APP REGISTERED
-    $appRegistered12m[] = (int)getDataByWhere("user", "count(*) as total", "reg_at like '%app%' AND DATE(reg_date) BETWEEN '$start' AND '$end'")['total'];
-
-    // WEB REGISTERED
-    $webRegistered12m[] = (int)getDataByWhere("user", "count(*) as total", "reg_at like '%web%' AND DATE(reg_date) BETWEEN '$start' AND '$end'")['total'];
-
-    // APP SUBSCRIBED
-    $appSubscribed12m[] = (int)getDataByJoin(
-        ["subscription as s", "user as u"],
-        "COUNT(*) as total",
-        "s.subscription_date BETWEEN '$start' AND '$end'
-         AND s.amount > 0
-         AND s.user_id = u.user_id
-         AND u.reg_at LIKE '%app%'"
-    )['total'];
-
-    // WEB SUBSCRIBED
-    $webSubscribed12m[] = (int)getDataByJoin(
-        ["subscription as s", "user as u"],
-        "COUNT(*) as total",
-        "s.subscription_date BETWEEN '$start' AND '$end'
-         AND s.amount > 0
-         AND s.user_id = u.user_id
-         AND u.reg_at LIKE '%web%'"
-    )['total'];
-}
-
-// 5 years
-$appRegistered5y = [];
-$appSubscribed5y = [];
-$webRegistered5y = [];
-$webSubscribed5y = [];
-
-for ($i = 4; $i >= 0; $i--) {
-
-    $year = date('Y', strtotime("-$i year"));
-    $start = $year . "-01-01";
-    $end   = $year . "-12-31";
-
-
-    // APP REGISTERED
-    $appRegistered5y[] = (int)getDataByWhere("user", "count(*) as total", "reg_at like '%app%' AND DATE(reg_date) BETWEEN '$start' AND '$end'")['total'];
-
-    // WEB REGISTERED
-    $webRegistered5y[] = (int)getDataByWhere("user", "count(*) as total", "reg_at like '%web%' AND DATE(reg_date) BETWEEN '$start' AND '$end'")['total'];
-
-    // APP SUBSCRIBED
-    $appSubscribed5y[] = (int)getDataByJoin(
-        ["subscription as s", "user as u"],
-        "COUNT(*) as total",
-        "s.subscription_date BETWEEN '$start' AND '$end'
-         AND s.amount > 0
-         AND s.user_id = u.user_id
-         AND u.reg_at LIKE '%app%'"
-    )['total'];
-
-    // WEB SUBSCRIBED
-    $webSubscribed5y[] = (int)getDataByJoin(
-        ["subscription as s", "user as u"],
-        "COUNT(*) as total",
-        "s.subscription_date BETWEEN '$start' AND '$end'
-         AND s.amount > 0
-         AND s.user_id = u.user_id
-         AND u.reg_at LIKE '%web%'"
-    )['total'];
-}
-
-// Compile App vs Web Chart Data
-$app_vs_web_chart_data = [
-    '7d' => [
-        'labels' => $labels7d,
-        'app_registered' => $appRegistered7d,
-        'app_subscribed' => $appSubscribed7d,
-        'web_registered' => $webRegistered7d,
-        'web_subscribed' => $webSubscribed7d
-    ],
-    '10w' => [
-        'labels' => $labels10w,
-        'app_registered' => $appRegistered10w,
-        'app_subscribed' => $appSubscribed10w,
-        'web_registered' => $webRegistered10w,
-        'web_subscribed' => $webSubscribed10w
-    ],
-    '12m' => [
-        'labels' => $labels12m,
-        'app_registered' => $appRegistered12m,
-        'app_subscribed' => $appSubscribed12m,
-        'web_registered' => $webRegistered12m,
-        'web_subscribed' => $webSubscribed12m
-    ],
-    '5y' => [
-        'labels' => $labels5y,
-        'app_registered' => $appRegistered5y,
-        'app_subscribed' => $appSubscribed5y,
-        'web_registered' => $webRegistered5y,
-        'web_subscribed' => $webSubscribed5y
-    ]
-];
-$data['app_vs_web_chart_data'] = $app_vs_web_chart_data;
-// ******* End App vs Web Chart Data *******
-
-
-// ******* Start Course Performance Data *******
-
-$labelsAll = [];
-$enrolledAll = [];
-$subscribedAll = [];
-$enrolledTop = [];
-$subscribedTop = [];
-$enrolledBottom = [];
-$subscribedBottom = [];
-
-$course_groups = getQuery("course_group", "*", array(), "ord");
-
-foreach ($course_groups as $group) {
-
-    $courses = getQuery("course", "*", array("group_id" => $group['group_id']), "ord");
-
-    foreach ($courses as $course) {
-
-        $labelsAll[] = $course['course_name'];
-        $course_id = $course['course_id'];
-
-        // Weekly data
-        $start = date('Y-m-d', strtotime('-6 days'));
-        $end   = date('Y-m-d');
-        $enrolledAll[] = (int)getDataByJoin(
-            ["subscription as s", "user as u"],
-            "COUNT(*) as total",
-            "s.subscription_date BETWEEN '$start' AND '$end'
-            AND s.course_id = $course_id
-            AND s.user_id = u.user_id"
-        )['total'];
-        $subscribedAll[] = (int)getDataByJoin(
-            ["subscription as s", "user as u"],
-            "COUNT(*) as total",
-            "s.subscription_date BETWEEN '$start' AND '$end'
-            AND s.course_id = $course_id
-            AND s.amount > 0
-            AND s.user_id = u.user_id"
-        )['total'];
-
-        // Monthly data
-        $start = date('Y-m-d', strtotime('-30 days'));
-        $end   = date('Y-m-d');
-        $enrolledTop[] = (int)getDataByJoin(
-            ["subscription as s", "user as u"],
-            "COUNT(*) as total",
-            "s.subscription_date BETWEEN '$start' AND '$end'
-            AND s.course_id = $course_id
-            AND s.user_id = u.user_id"
-        )['total'];
-        $subscribedTop[] = (int)getDataByJoin(
-            ["subscription as s", "user as u"],
-            "COUNT(*) as total",
-            "s.subscription_date BETWEEN '$start' AND '$end'
-            AND s.course_id = $course_id
-            AND s.amount > 0
-            AND s.user_id = u.user_id"
-        )['total'];
-
-        // Yearly data
-        $start = date('Y-m-d', strtotime('-365 days'));
-        $end   = date('Y-m-d');
-        $enrolledBottom[] = (int)getDataByJoin(
-            ["subscription as s", "user as u"],
-            "COUNT(*) as total",
-            "s.subscription_date BETWEEN '$start' AND '$end'
-            AND s.course_id = $course_id
-            AND s.user_id = u.user_id"
-        )['total'];
-        $subscribedBottom[] = (int)getDataByJoin(
-            ["subscription as s", "user as u"],
-            "COUNT(*) as total",
-            "s.subscription_date BETWEEN '$start' AND '$end'
-            AND s.course_id = $course_id
-            AND s.amount > 0
-            AND s.user_id = u.user_id"
-        )['total'];
-    }
-}
-
-$course_chart_data = [
-    'all' => [
-        'labels' => $labelsAll,
-        'enrolled' => $enrolledAll,
-        'subscribed' => $subscribedAll
-    ],
-    'top' => [
-        'labels' => $labelsAll,
-        'enrolled' => $enrolledTop,
-        'subscribed' => $subscribedTop
-    ],
-    'bottom' => [
-        'labels' => $labelsAll,
-        'enrolled' => $enrolledBottom,
-        'subscribed' => $subscribedBottom
-    ]
-];
 
 $data['course_chart_data'] = $course_chart_data;
-// ********* end course chart data ***********
 
+// ******* Login pie (last 1 month = last 30 days) *******
 
-// ******** start login pie chart ************
-$login_app_month = (int)getDataByJoin(
-    ["login as l", "user as u"],
-    "COUNT(*) as total",
-    "l.user_id = u.user_id
-     AND MONTH(l.last_login) = $currentMonth
-     AND YEAR(l.last_login) = $currentYear
-     AND u.reg_at LIKE '%app%'"
-)['total'];
+$loginStart = date('Y-m-d', strtotime("$today -30 days"));
+$loginJoin  = "login as l INNER JOIN " . $configs['prev'] . "user as u ON u.user_id = l.user_id";
+$loginWhere = "l.last_login BETWEEN '$loginStart 00:00:00' AND '$today 23:59:59' AND $NOT_TESTER";
 
-$login_web_month = (int)getDataByJoin(
-    ["login as l", "user as u"],
-    "COUNT(*) as total",
-    "l.user_id = u.user_id
-     AND MONTH(l.last_login) = $currentMonth
-     AND YEAR(l.last_login) = $currentYear
-     AND u.reg_at LIKE '%web%'"
-)['total'];
-
-$data['login_pie_data'] = [
-    'app' => $login_app_month,
-    'web' => $login_web_month
-];
-// ********* end login pie chart **********
+$data['login_pie_data'] = array(
+	'app' => (int) waScalar(getDataByWhere($loginJoin, "COUNT(*) AS total", "$loginWhere AND $APP_USER")),
+	'web' => (int) waScalar(getDataByWhere($loginJoin, "COUNT(*) AS total", "$loginWhere AND $WEB_USER"))
+);
 
 echo template($data);
-?>

@@ -305,7 +305,7 @@
 									echo '<table class="table table-borderless">';
 									$i = 0;
 
-									$key = $cat_id;
+									foreach ((isset($review_cat_ids) ? $review_cat_ids : array($cat_id)) as $key) {
 
 									//echo'<tr><td colspan=3><h4>'.$v['cat_name'].'</h4></td></tr>';
 
@@ -392,6 +392,7 @@
 											echo "<tr><td colspan=3><hr style='margin:0;'></td></tr>";
 										}
 									}
+									} // foreach $review_cat_ids
 
 									echo "</table>";
 

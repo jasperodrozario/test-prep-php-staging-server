@@ -7,77 +7,60 @@ $data['breadcrumb'] = array("Category List" => "category_list?course_id=" . $_GE
 
 if (isset($_POST['SBMT_REG'])) {
 
-	if (!empty($_POST['cat_id'])) {
+	$text_fields = ['category_name', 'description', 'shortcode', 'online', 'free'];
+	$int_fields = [
+		'course_id',
+		'category_order',
+		'num_of_ques_pt',
+		'num_of_story_pt',
+		'free_test',
+		'num_free_test_ques',
+		'free_pred_test',
+		'num_free_pred_test_ques'
+	];
 
-		$allowed_fields = [
-			'category_name',
-			'description',
-			'course_id',
-			'category_order',
-			'online',
-			'free',
-			'shortcode',
-			'num_of_ques_pt',
-			'num_of_story_pt',
-			'free_test',
-			'num_free_test_ques',
-			'free_pred_test',
-			'num_free_pred_test_ques'
-		];
-
-		$filtered_data = array_filter(
-			array_intersect_key($_POST, array_flip($allowed_fields)),
-			fn($v) => $v !== '' && $v !== null
-		);
-
-		$r = updateTable(
-			"category",
-			$filtered_data,
-			["cat_id" => $_POST['cat_id'], "course_id" => $_POST['course_id']]
-		);
-
-		$cat_id = $_POST['cat_id'];
-
-		if ($r) {
-			$data['msg'] = $configs['success_msg'];
-		} else {
-			$data['msg'] = $configs['error_msg'];
+	$filtered_data = [];
+	foreach ($text_fields as $f) {
+		if (isset($_POST[$f])) {
+			$filtered_data[$f] = mysqli_real_escape_string($configs['con'], trim($_POST[$f]));
 		}
-
-		$data['checking_data'] = $filtered_data;
-		$data['flag'] = "i'm here";
-	} else {
-		unset($_POST['cat_id']);
-
-		$cat_id = insertTable("category", $_POST);
-
-		if ($cat_id) {
-			$data['msg'] = $configs['success_msg'];
-		} else {
-			$data['msg'] = $configs['error_msg'];
+	}
+	// blank number fields are skipped (DB is in strict mode, '' is not a valid int)
+	foreach ($int_fields as $f) {
+		if (isset($_POST[$f]) && $_POST[$f] !== '') {
+			$filtered_data[$f] = (int)$_POST[$f];
 		}
 	}
 
-	if (!mysqli_errno($configs['con'])) {
-
-		if ($_POST['backpage'] == "free") {
-			header("location:category-list-free-test?course_id=" . $_POST['course_id']);
-			exit;
-		} 
-		else if($_POST['backpage'] == "free-pred"){
-			header("location:category-list-free-pred-test?course_id=" . $_POST['course_id']);
-			exit;
-		} 
-		else {
-			header("location:category_list?course_id=" . $_POST['course_id']);
+	if (empty($filtered_data['category_name']) || empty($filtered_data['course_id'])) {
+		$data['msg'] = "<p><img src='" . $configs['vpath'] . "img/off.png'> <font color=red>Category name and course are required.</font></p>";
+	} else {
+		if (!empty($_POST['cat_id'])) {
+			$cat_id = (int)$_POST['cat_id'];
+			updateTable("category", $filtered_data, ["cat_id" => $cat_id]);
+		} else {
+			$cat_id = insertTable("category", $filtered_data);
 		}
+
+		if (!mysqli_errno($configs['con'])) {
+			if ($_POST['backpage'] == "free") {
+				header("location:category-list-free-test?course_id=" . $filtered_data['course_id']);
+			} else if ($_POST['backpage'] == "free-pred") {
+				header("location:category-list-free-pred-test?course_id=" . $filtered_data['course_id']);
+			} else {
+				header("location:category_list?course_id=" . $filtered_data['course_id']);
+			}
+			exit;
+		}
+
+		$data['msg'] = $configs['error_msg'];
 	}
 }
 
 $data['course'] = getQuery("course", "*", "", "course_name");
 
 if ($_REQUEST['cat_id']) {
-	$data['db_value'] = getDataByWhere("category", "*", array("cat_id" => $_REQUEST['cat_id'], "course_id" => $_GET['course_id']));
+	$data['db_value'] = getDataByWhere("category", "*", array("cat_id" => (int)$_REQUEST['cat_id']));
 }
 
 echo template($data);

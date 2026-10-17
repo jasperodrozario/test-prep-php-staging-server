@@ -15,9 +15,19 @@
     <li <? if ($_GET['status'] == "T") {
             echo 'class="active"';
         } ?>><a href="<?= $configs['admin_vpath'] ?>student-list?reg_at=<?= $_GET['reg_at'] . '&referral_member=' . $_GET['referral_member']; ?>&status=T&test_id=<?= $_GET['test_id']; ?>&key=<?= $_GET['key']; ?>" class='tab'>1-On-1 Tutor (<?= $total_tutor; ?>)</a></li>
+
+    <? if (!$_GET['referral_member']) { ?>
+    <li <? if ($_GET['status'] == "testing") {
+            echo 'class="active"';
+        } ?>><a href="<?= $configs['admin_vpath'] ?>student-list?reg_at=<?= $_GET['reg_at']; ?>&status=testing&test_id=<?= $_GET['test_id']; ?>&key=<?= $_GET['key']; ?>" class='tab'><i class="fa fa-flask"></i> Tester Accounts (<span id="testerTabCount"><?= (int) $total_testing; ?></span>)</a></li>
+    <? } ?>
 </ul>
 
 <div class='clearfix'><br></div>
+
+<? if (!empty($testing_flash)) { ?>
+    <div class="alert alert-<?= $testing_flash[0] ?>" style="margin-bottom: 15px;"><?= htmlspecialchars($testing_flash[1]) ?></div>
+<? } ?>
 
 <form method='get' action="<?= $configs['admin_vpath'] ?>student-list">
 
@@ -150,12 +160,14 @@
                     } else {
                         $paid = "<font color=red>No</font>";
                     }
+                    $isTesting = isset($testingIds[(int) $d['user_id']]);
                 ?>
-                    <tr>
+                    <tr<?= $isTesting ? ' class="testing-account-row"' : '' ?>>
                         <td><input type='checkbox' name='user_ids[]' value='<?= $d['user_id']; ?>' class='checkBoxClass'></td>
                         <!--                    <td align="left"><input type='checkbox' name='user_ids[]' value='<?= $d['user_id']; ?>'></td>-->
                         <td align="left"><?= $d['user_id']; ?></td>
-                        <td><?php echo ucwords($d['first_name'] . " " . $d['last_name']); ?><br>
+                        <td class="student-name-cell"><?php echo ucwords($d['first_name'] . " " . $d['last_name']); ?>
+                            <?php if ($isTesting) { ?><span class="testing-badge" title="Payments from this account are excluded from revenue"><i class="fa fa-flask"></i> TESTER</span><?php } ?><br>
                             <?php echo $d['email']; ?><br>
                             Mobile : <?php echo $d['mobile']; ?>
                         </td>
@@ -206,6 +218,14 @@
                             <a href="student-reg?user_id=<?php echo $d['user_id']; ?>">Edit</a> | 
                             <a href="<?= $configs['vpath'] ?>login-for-admin/<?php echo $d['email']; ?>/<?php echo $d['password']; ?>" target='_new'>View User</a>
                             |&nbsp; <a href='javascript://' onClick="javascript:if(confirm('Are you deleting')){window.location='student-list?delete_id=<?= $d['user_id'] . "&amp;reg_at=" . $_GET['reg_at'] . "&limit=" . $_REQUEST['limit']; ?>'};">Delete</a>
+                            <?php if ($canMarkTesting) { ?>
+                                <br>
+                                <?php if ($isTesting) { ?>
+                                    <a href="javascript://" class="testing-toggle unmark" onclick="setTestingAccount(<?= (int) $d['user_id'] ?>, 0, this)"><i class="fa fa-undo"></i> Unmark Tester</a>
+                                <?php } else { ?>
+                                    <a href="javascript://" class="testing-toggle" onclick="setTestingAccount(<?= (int) $d['user_id'] ?>, 1, this)"><i class="fa fa-flask"></i> Mark Tester</a>
+                                <?php } ?>
+                            <?php } ?>
                         </td>
                     </tr>
                 <?php
@@ -216,6 +236,115 @@
         </table>
     </div>
 </form>
+
+<?php if ($canMarkTesting) {
+    $testingReturn = $_GET;
+    unset($testingReturn['testing_msg'], $testingReturn['testing_uid'], $testingReturn['home_limit']);
+?>
+    <form method="post" action="student-list" id="testingAccountForm" style="display:none;">
+        <input type="hidden" name="action" value="set_testing">
+        <input type="hidden" name="csrf" value="<?= htmlspecialchars($testing_csrf) ?>">
+        <input type="hidden" name="user_id" value="">
+        <input type="hidden" name="is_testing" value="">
+        <input type="hidden" name="return_qs" value="<?= htmlspecialchars(http_build_query($testingReturn)) ?>">
+    </form>
+    <script>
+        function setTestingAccount(userId, isTesting, link) {
+            // Marking happens straight away; unmarking asks first
+            if (!isTesting && !confirm('Unmark student #' + userId + ' as a tester account?\n\nIts payments will be counted in revenue reports again.')) return;
+            var form = document.getElementById('testingAccountForm');
+            form.elements.user_id.value = userId;
+            form.elements.is_testing.value = isTesting ? '1' : '0';
+
+            // Save in the background; the page never reloads, so scroll position, filters and paging stay as they are
+            var body = new FormData(form);
+            body.append('ajax', '1');
+            var originalHtml = link.innerHTML;
+            link.style.pointerEvents = 'none';
+            link.style.opacity = '0.5';
+            link.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving…';
+
+            // getAttribute: form.action would return the hidden <input name="action"> instead of the URL
+            fetch(form.getAttribute('action'), { method: 'POST', body: body, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) {
+                    if (r.redirected && /\/login(\?|$)/.test(r.url)) {
+                        throw new Error('Your admin session has expired. Please log in again in another tab and retry. Nothing was changed.');
+                    }
+                    if (!r.ok) {
+                        throw new Error('The server returned an error (HTTP ' + r.status + '). Nothing was changed. Please try again.');
+                    }
+                    return r.json().catch(function () {
+                        throw new Error('The server sent an unexpected response. Nothing was changed. Please reload the page and try again.');
+                    });
+                })
+                .then(function (res) {
+                    link.style.pointerEvents = '';
+                    link.style.opacity = '';
+                    link.innerHTML = originalHtml;
+                    // Only reflect what the server confirmed is saved in the database
+                    if (res.is_testing === true || res.is_testing === false) {
+                        updateTesterRow(userId, res.is_testing, link, res.changed);
+                    }
+                    showTesterToast(res.ok ? 'success' : 'error', res.message);
+                })
+                .catch(function (err) {
+                    link.style.pointerEvents = '';
+                    link.style.opacity = '';
+                    link.innerHTML = originalHtml;
+                    // Our own errors carry a message; a network failure is a TypeError from fetch
+                    showTesterToast('error', err && err.message && err.message.indexOf('Nothing was changed') !== -1
+                        ? err.message
+                        : 'Couldn\'t reach the server. Nothing was changed. Please check your connection and try again.');
+                });
+        }
+
+        function showTesterToast(type, message) {
+            var box = document.getElementById('testerToastBox');
+            if (!box) {
+                box = document.createElement('div');
+                box.id = 'testerToastBox';
+                document.body.appendChild(box);
+            }
+            var toast = document.createElement('div');
+            toast.className = 'tester-toast ' + (type === 'success' ? 'success' : 'error');
+            toast.setAttribute('role', type === 'success' ? 'status' : 'alert');
+            toast.innerHTML = '<i class="fa ' + (type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle') + '"></i> ';
+            toast.appendChild(document.createTextNode(message));
+            box.appendChild(toast);
+            setTimeout(function () {
+                toast.classList.add('hide');
+                setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+            }, type === 'success' ? 3500 : 6000);
+        }
+
+        function updateTesterRow(userId, isTesting, link, changed) {
+            var row = link.closest('tr');
+            row.classList.toggle('testing-account-row', isTesting);
+
+            var nameCell = row.querySelector('.student-name-cell');
+            var badge = nameCell.querySelector('.testing-badge');
+            if (isTesting && !badge) {
+                badge = document.createElement('span');
+                badge.className = 'testing-badge';
+                badge.title = 'Payments from this account are excluded from revenue';
+                badge.innerHTML = '<i class="fa fa-flask"></i> TESTER';
+                nameCell.insertBefore(badge, nameCell.querySelector('br'));
+            } else if (!isTesting && badge) {
+                badge.parentNode.removeChild(badge);
+            }
+
+            link.className = isTesting ? 'testing-toggle unmark' : 'testing-toggle';
+            link.innerHTML = isTesting ? '<i class="fa fa-undo"></i> Unmark Tester' : '<i class="fa fa-flask"></i> Mark Tester';
+            link.onclick = function () { setTestingAccount(userId, isTesting ? 0 : 1, link); };
+
+            var count = document.getElementById('testerTabCount');
+            if (count && changed) {
+                count.textContent = Math.max(0, (parseInt(count.textContent, 10) || 0) + (isTesting ? 1 : -1));
+            }
+        }
+    </script>
+<?php } ?>
+
 <? if ($total > 100) {
     echo "<ul class='pagination'>" . paging($total, "", $param) . "</ul>";
 } ?>
@@ -242,5 +371,59 @@
     .inline-radio-group .form-check-inline {
         margin-right: 15px;
         /* Adjust spacing as needed */
+    }
+
+    .testing-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: bold;
+        color: #8a5a00;
+        background-color: #ffe08a;
+        vertical-align: middle;
+    }
+
+    .testing-toggle {
+        display: inline-block;
+        margin-top: 4px;
+        color: #000;
+        font-weight: 600;
+    }
+
+    #testerToastBox {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 9999;
+        max-width: 360px;
+    }
+
+    .tester-toast {
+        margin-bottom: 10px;
+        padding: 12px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        line-height: 1.5;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+        opacity: 1;
+        transition: opacity 0.3s;
+    }
+
+    .tester-toast.success {
+        color: #155724;
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+    }
+
+    .tester-toast.error {
+        color: #721c24;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+    }
+
+    .tester-toast.hide {
+        opacity: 0;
     }
 </style>
