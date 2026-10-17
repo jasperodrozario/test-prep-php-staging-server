@@ -14,6 +14,7 @@ include("configs/prediction_score_courses.php");
 include("configs/legacy_officers_progress_report.php");
 include(__DIR__ . "/app-intro-videos.php");
 include("smtpmail.php");
+include("configs/app-version-policy.php");
 
 function getExamTables($test_id)
 {
@@ -263,6 +264,7 @@ function cleanArray($data)
  * A submitted prediction test is a result row with Predic_test_id > 0 and score > -1.
  * In-progress rows (score = -1) and lesson results are ignored.
  * Returns 1 when the user may open/submit, 0 when subscription is required.
+ * A missing or non-positive user_id is locked.
  */
 function getCanTakePredTestFlag($user)
 {
@@ -272,10 +274,10 @@ function getCanTakePredTestFlag($user)
 
     $user_id = !empty($user['user_id']) ? (int)$user['user_id'] : 0;
     if ($user_id <= 0) {
-        return 1;
+        return 0;
     }
 
-    $submitted_prediction_tests = (int)getTotalRow("result", array(
+    $submitted_prediction_tests = (int)getTotalRow( "result", array(
         "user_id" => $user_id,
         "Predic_test_id >" => 0,
         "score >" => -1
@@ -318,6 +320,11 @@ if ($_POST['action']) {
             break;
 
         case "social-register":
+
+            if (function_exists("appVersionLoginBlocked") && appVersionLoginBlocked()) {
+                $response = appVersionBlockedLoginResponse();
+                break;
+            }
 
             $provider = $_POST['provider']; // 'google' or 'apple'
             $idToken = $_POST['id_token'];
@@ -518,9 +525,9 @@ if ($_POST['action']) {
                             // Replace placeholders
                             $body = str_replace("{name}", $_POST['first_name'], $body);
 
-                            if($_POST['course_id']==28){
+                            if ($_POST['course_id'] == 28) {
                                 $body = str_replace("{course_name}", "ASVAB", $body);
-                            } else{
+                            } else {
                                 $body = str_replace("{course_name}", $course_name, $body);
                             }
 
@@ -554,14 +561,13 @@ if ($_POST['action']) {
 
                             $subject = $mail['subject'];
 
-                            if($_POST['course_id']==28){
+                            if ($_POST['course_id'] == 28) {
                                 $subject = str_replace("{course_name}", "ASVAB", $subject);
-                            } else{
+                            } else {
                                 $subject = str_replace("{course_name}", $course_name, $subject);
                             }
 
                             $flag = smtpmailer($_POST['email'], $setting['support_mail'], ucwords($configs['dotcom']), $subject, $styled_body);
-
                         }
                     }
 
@@ -645,6 +651,11 @@ if ($_POST['action']) {
             break;
 
         case "register":
+
+            if (function_exists("appVersionLoginBlocked") && appVersionLoginBlocked()) {
+                $response = appVersionBlockedLoginResponse();
+                break;
+            }
 
             $n = getTotalRow("user", array("email" => $_POST['email'], "activation_status!" => "D"));
             if ($_POST['password'] != $_POST['confirm_password']) {
@@ -740,9 +751,9 @@ if ($_POST['action']) {
                             // Replace placeholders
                             $body = str_replace("{name}", $_POST['first_name'], $body);
 
-                            if($_POST['course_id']==28){
+                            if ($_POST['course_id'] == 28) {
                                 $body = str_replace("{course_name}", "ASVAB", $body);
-                            } else{
+                            } else {
                                 $body = str_replace("{course_name}", $course_name, $body);
                             }
 
@@ -776,14 +787,13 @@ if ($_POST['action']) {
 
                             $subject = $mail['subject'];
 
-                            if($_POST['course_id']==28){
+                            if ($_POST['course_id'] == 28) {
                                 $subject = str_replace("{course_name}", "ASVAB", $subject);
-                            } else{
+                            } else {
                                 $subject = str_replace("{course_name}", $course_name, $subject);
                             }
 
                             $flag = smtpmailer($_POST['email'], $setting['support_mail'], ucwords($configs['dotcom']), $subject, $styled_body);
-
                         }
                     }
 
@@ -813,6 +823,11 @@ if ($_POST['action']) {
 
             if (!$_POST['course_id']) {
                 $response["message"] = "Developer needs to add course id!";
+                break;
+            }
+
+            if (function_exists("appVersionLoginBlocked") && appVersionLoginBlocked()) {
+                $response = appVersionBlockedLoginResponse();
                 break;
             }
 
@@ -1327,10 +1342,22 @@ if ($_POST['action']) {
                     $response['practice_test_total'] = getFldValueById("category", "num_of_ques_pt", array("cat_id" => $lesson['cat_id'], "course_id" => $test_id));
 
                     if (!$response['practice_test_total']) {
+
+                        $total_pt_ques = getTotalRow("lesson_questions", array("cat_id" => $_POST['cat_id'], "lesson_id" => (int)$_POST['lesson_id'], "pt" => 1, "course_id" => $test_id));
+
                         if (in_array($lesson['cat_id'], $data['story_question'])) {
-                            $response['practice_test_total'] = 20;
+
+                            if ($total_pt_ques < 20 && $total_pt_ques > 0) {
+                                $response['practice_test_total'] = $total_pt_ques;
+                            } else {
+                                $response['practice_test_total'] = 20;
+                            }
                         } else {
-                            $response['practice_test_total'] = 15;
+                            if ($total_pt_ques < 15 && $total_pt_ques > 0) {
+                                $response['practice_test_total'] = $total_pt_ques;
+                            } else {
+                                $response['practice_test_total'] = 15;
+                            }
                         }
                     }
 
@@ -1443,7 +1470,6 @@ if ($_POST['action']) {
                                     );
 
                                     $qlist[] = array("story" => $story_content, "serial_no" => $serial_no, "qid" => $d['qid'], "cat_id" => $d['cat_id'], "lesson_id" => $d['lesson_id'], "question" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['question']))), "question_explanation" => html_entity_decode(html_entity_decode($d['explanation'])), "correct_answer" => $data['alphabet'][$d['answer']], "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))));
-
                                 } else {
                                     $qlist[] = array("story" => html_entity_decode(html_entity_decode(html_entity_decode($d['story']))), "serial_no" => $serial_no, "qid" => $d['qid'], "cat_id" => $d['cat_id'], "lesson_id" => $d['lesson_id'], "question" => html_entity_decode($d['question']), "question_explanation" => html_entity_decode(html_entity_decode($d['explanation'])), "correct_answer" => $data['alphabet'][$d['answer']], "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))));
                                 }
@@ -1516,6 +1542,16 @@ if ($_POST['action']) {
                     if ($_POST['cat_id'] && $_POST['lesson_id']) {
                         $response['cat_id'] = $_POST['cat_id'];
                         $response['lesson_id'] = $_POST['lesson_id'];
+                        $practice_test_time = (int)getFldValueById(
+                            "category",
+                            "pt_time",
+                            array(
+                                "cat_id" => $_POST['cat_id'],
+                                "course_id" => $test_id
+                            )
+                        );
+
+                        $response['practice_test_time'] = ($practice_test_time > 0) ? $practice_test_time : 30;
 
                         $has_pt_questions = getTotalRow("lesson_questions", array("cat_id" => $_POST['cat_id'], "lesson_id" => (int)$_POST['lesson_id'], "pt" => 1, "course_id" => $test_id));
 
@@ -1539,7 +1575,13 @@ if ($_POST['action']) {
                                 $response['total'] = getFldValueById("category", "num_of_ques_pt", array("cat_id" => $_POST['cat_id'], "course_id" => $test_id));
 
                                 if (!$response['total']) {
-                                    $response['total'] = 20;
+                                    $total_pt_ques = getTotalRow("lesson_questions", array("cat_id" => $_POST['cat_id'], "lesson_id" => (int)$_POST['lesson_id'], "pt" => 1, "course_id" => $test_id));
+
+                                    if ($total_pt_ques < 20 && $total_pt_ques > 0) {
+                                        $response['total'] = $total_pt_ques;
+                                    } else {
+                                        $response['total'] = 20;
+                                    }
                                 }
 
                                 $qset = 0;
@@ -1633,6 +1675,7 @@ if ($_POST['action']) {
                                         }
                                     }
                                 }
+                                $response['total'] = $serial_no;
                                 $response['practicetest'] = $qlist;
                             }
                         } else {
@@ -1649,8 +1692,7 @@ if ($_POST['action']) {
                             if ($qset) {
                                 $response['practicetest'] = getQueryByJoin(array("question as q", "lesson_questions as l", "$exam_table as e"), "e.user_ans, e.id as eid, q.*, l.*", array("l.lesson_id" => $_POST['lesson_id'], "l.cat_id" => $_POST['cat_id'], "l.$pt_hw" => 1, "l.course_id" => $test_id, "e.user_id" => $user_id, "e.is_result" => 0), array("q.qid" => "l.qid", "e.qid" => "q.qid"), "e.id", $response['total'], "", "q.qid");
                             } else {
-
-                            $response['testing'] = $_POST['lesson_id'];
+                                $response['testing'] = $_POST['lesson_id'];
 
                                 $response['practicetest'] = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*,l.*", array("l.lesson_id" => $_POST['lesson_id'], "l.cat_id" => $_POST['cat_id'], "l.$pt_hw" => 1, "l.course_id" => $test_id), array("q.qid" => "l.qid"), "l.order_no", $response['total'], "", "q.qid");
                             }
@@ -2063,22 +2105,55 @@ if ($_POST['action']) {
                         $i++;
                     }
 
+                    // SHSAT: show the ELA backend categories as one "English Language Arts" category.
+                    // Each question keeps its real backend cat_id and eid, so answers are saved as before.
+                    $pred_qb_by_cat = array();
+                    foreach ($pred_cat_list as $p) {
+                        $pred_qb_by_cat[$p['cat_id']] = $p['pred_qb_id'];
+                    }
+                    $pred_load_cat_ids = array($_POST['cat_id']);
+                    $shsat_groups = shsatPredictionCategoryGroups($test_id, $pred_cat_list);
+                    if ($shsat_groups) {
+                        if (isset($shsat_groups['cat_to_group'][$_POST['cat_id']])) {
+                            $_POST['cat_id'] = (string)$shsat_groups['cat_to_group'][$_POST['cat_id']];
+                        }
+                        $pred_categories = array();
+                        foreach ($shsat_groups['groups'] as $key => $g) {
+                            $g_completed = 0;
+                            foreach ($g['cat_ids'] as $gid) {
+                                $g_completed += $prediction_cat[$gid]['completed'];
+                            }
+                            $pred_categories[] = ["cat_name" => $g['category_name'], "shortcode" => $g['category_name'], "cat_id" => (string)$key, "total" => (string)$g['total'], "duration" => (string)$g['duration'], "completed" => $g_completed];
+                        }
+                        if (isset($shsat_groups['groups'][$_POST['cat_id']])) {
+                            $pred_load_cat_ids = $shsat_groups['groups'][$_POST['cat_id']]['cat_ids'];
+                        }
+                    }
+
                     $response['cat_id'] = $_POST['cat_id'];
                     $response['category_name'] = getFldValueById("category", "category_name", ["cat_id" => $_POST['cat_id']]);
+                    if ($shsat_groups && isset($shsat_groups['groups'][$_POST['cat_id']])) {
+                        $response['category_name'] = $shsat_groups['groups'][$_POST['cat_id']]['category_name'];
+                    }
                     $response['completed_total'] = $completed_total;
                     $response['total'] = $total;
                     $response['prediction_category'] = $pred_categories;
                     $response['alert'] = "";
-                    $cat_id = $_POST['cat_id'];
-                    $limit = $prediction_cat[$cat_id]["total"];
-                    $lessons_text = [];
-                    $set_id = 0;
 
                     if ($completed_total) {
                         $response['alert'] = "You have answers (" . $completed_total . ") questions already. Do you want to continue or start a new test?";
                     }
 
+                    // Load questions for each backend category in this section (one, except SHSAT ELA).
+                    $serial_no = 0;
+                    foreach ($pred_load_cat_ids as $cat_id) {
+                    $pred_qb_id = $pred_qb_by_cat[$cat_id];
+                    $limit = $prediction_cat[$cat_id]["total"];
+                    $lessons_text = [];
+                    $set_id = 0;
+
                     if (in_array($cat_id, $data['story_question'])) {
+
                         if (in_array($cat_id, array(84, 63, 65))) {
                             $limit = (int)$limit / 5;
                         } else {
@@ -2138,8 +2213,6 @@ if ($_POST['action']) {
                                     }
                                 }
 
-                                $response['testing2'] = $set_num;
-
                                 if (!empty($set_num)) {
                                     $response['testing'] = "hello! im here.";
                                     $random_key = array_rand($set_num);
@@ -2166,7 +2239,10 @@ if ($_POST['action']) {
                                     "q.story_id"
                                 );
 
-                                // $story_list_array = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.story_id", array("l.pred_id" => $pred_qb_id), array("q.qid" => "l.qid"), "", "", "", "q.story_id");
+                                // $response['testing'] = [];
+                                // foreach ($story_list_array as $r) {
+                                //     $response['testing'][] = $r['story_id'];
+                                // }
                             }
                         }
 
@@ -2182,8 +2258,8 @@ if ($_POST['action']) {
                             $result_id = insertTable("result", ["user_id" => $user_id, "cat_id" => $cat_id, "Predic_test_id" => (int)$_POST['pred_test_id'], "total_questions" => $prediction_cat[$cat_id]['total'], "result_date" => date('Y-m-d H:i:s'), "score" => -1, "pred_set_id" => $set_id]);
                         }
 
-                        $serial_no = 0;
                         $total_story_ques = $prediction_cat[$cat_id]["total"];
+
                         foreach ($story_list_array as $a) {
                             if ($total_story_ques <= 0) {
                                 break;
@@ -2194,9 +2270,9 @@ if ($_POST['action']) {
                             if ($set_id) {
                                 $question_list = getQueryByJoin(array("question as q", "predic_questions as p"), "q.*,p.*", array("p.cat_id" => (int)$cat_id, "p.predic_test_id" => $_POST['pred_test_id'], "p.course_id" => $test_id, "q.story_id" => $a['story_id']), array("q.qid" => "p.qid"), 'q.qid', '', '', "q.qid");
                             } else {
-                                $question_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*,l.*", array("l.cat_id" => (int)$cat_id, "l.course_id" => $test_id, "q.story_id" => $a['story_id']), array("q.qid" => "l.qid"), "q.qid", $total_story_ques, '', "l.qid");
+                                $question_list = getQueryByJoin(array("question as q", "lesson_questions as l"), "q.*,l.*", array("l.pred_id" => (int)$pred_qb_id, "q.story_id" => $a['story_id']), array("q.qid" => "l.qid"), "q.qid", $total_story_ques, '', "l.qid");
 
-                                $n_question = getTotalRowsByJoin(array("question as q", "lesson_questions as l"), array("l.cat_id" => (int)$cat_id, "l.course_id" => $test_id, "q.story_id" => $a['story_id']), array("q.qid" => "l.qid"));
+                                $n_question = getTotalRowsByJoin(array("question as q", "lesson_questions as l"), array("l.pred_id" => (int)$pred_qb_id, "q.story_id" => $a['story_id']), array("q.qid" => "l.qid"));
 
                                 $total_story_ques -= $n_question;
                             }
@@ -2270,7 +2346,6 @@ if ($_POST['action']) {
 
                         $exist_prev_ques = getTotalRow($exam_table, array("cat_id" => $cat_id, "user_id" => $user_id, "Predic_test_id" => (int)$_POST['pred_test_id'], "is_result" => 0));
 
-                        $serial_no = 0;
                         foreach ($question_list as $d) {
                             $serial_no++;
                             $eid = 0;
@@ -2287,6 +2362,22 @@ if ($_POST['action']) {
                         }
 
                         $response['question_test'] = $question;
+                    }
+                    } // foreach $pred_load_cat_ids
+
+                    // SHSAT ELA: return question_test as a dictionary keyed by the original category
+                    // name (section), each holding that section's questions in test order.
+                    if (count($pred_load_cat_ids) > 1 && !empty($response['question_test'])) {
+                        $questions_by_section = array();
+                        $prev_section_cat = null;
+                        foreach ($response['question_test'] as $qv) {
+                            $section_name = $prediction_cat[$qv['cat_id']]['cat_name'];
+                            $qv['section_name'] = $section_name;
+                            $qv['section_start'] = ($qv['cat_id'] != $prev_section_cat) ? 1 : 0;
+                            $prev_section_cat = $qv['cat_id'];
+                            $questions_by_section[$section_name][] = $qv;
+                        }
+                        $response['question_test'] = $questions_by_section;
                     }
                 } else {
                     $response['message'] = "Its paid lesson.Upgrade your membership to get all paid lessons active by paying  $" . $configs['subscription_fees'] . " USD for " . $configs['validity'] . " days.";
@@ -2367,11 +2458,6 @@ if ($_POST['action']) {
                     break;
                 }
 
-                if ($user['activation_status'] != 'Y' && (empty($_POST['took_pred_test']) || $_POST['took_pred_test'] != '1')) {
-                    predictionTestSubmissionLockedResponse($response);
-                    break;
-                }
-
                 $tables = getExamTables($test_id);
 
                 $exam_table = $tables['exam_table'];
@@ -2409,7 +2495,7 @@ if ($_POST['action']) {
                     $num_correct_ans = (int)getTotalRow($exam_table, array("iscorrect" => 1, "user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "is_result" => 0));
 
                     if (isStateMathCourseId($test_id)) {
-                        $correct_ans_percentage = predictionScoreFeedbackPercent($num_correct_ans, $num_questions);
+                        $correct_ans_percentage = stateMathCorrectPercent($num_correct_ans, $num_questions);
                         $cat_score = scaleStateMathSolScore($correct_ans_percentage);
                     } else if (isShsatCourseId($test_id)) {
                         $section = shsatCategorySection($cat);
@@ -2543,7 +2629,7 @@ if ($_POST['action']) {
                     $final_pred_score = $afqt_score;
                     $final_ve_score = $ve_score;
                 } else if (isStateMathCourseId($test_id)) {
-                    $overall_pct = predictionScoreFeedbackPercent($total_correct_ans, $total_questions);
+                    $overall_pct = stateMathCorrectPercent($total_correct_ans, $total_questions);
                     $final_pred_score = scaleStateMathSolScore($overall_pct);
                 } else if (isShsatCourseId($test_id)) {
                     $shsat_scores = computeShsatCompositeScore(
@@ -2558,7 +2644,7 @@ if ($_POST['action']) {
                     $full_asvab_scores = array();
 
                     // VE Score
-                    $ve_score = round(($cat_scores['PC'] + $cat_scores['WK']) / 2); 
+                    $ve_score = round(($cat_scores['PC'] + $cat_scores['WK']) / 2);
                     $full_asvab_scores['VE'] = $ve_score;
 
                     // AFQT Score
@@ -2848,6 +2934,7 @@ if ($_POST['action']) {
                     $english_total = 0;
                     $math_correct = 0;
                     $math_total = 0;
+                    $english_first_card = null;
 
                     foreach ($pred_cat_list as $p) {
                         if (!is_array($p) || empty($p['cat_id'])) {
@@ -2870,11 +2957,16 @@ if ($_POST['action']) {
                         if ($section === 'english') {
                             $english_correct += $card_correct;
                             $english_total += $card_total;
-                            unset($response['report'][$cat_name]['score']);
+                            // The ELA parts are reported only as the combined English Language Arts card below.
+                            if (!$english_first_card) {
+                                $english_first_card = $card;
+                            }
+                            unset($response['report'][$cat_name]);
                         } else if ($section === 'math') {
                             $math_correct += $card_correct;
                             $math_total += $card_total;
                             $response['report'][$cat_name]['score'] = computeShsatSectionScaledScore($card_correct, $card_total);
+                            $response['report'][$cat_name]['shortcode'] = $cat_name;
                         }
                     }
 
@@ -2893,11 +2985,12 @@ if ($_POST['action']) {
                     $ps['score'] = $composite;
                     $response['report']['prediction_score'] = $ps;
 
+                    // result_id/cat_id point at the first ELA part so review-prediction-test opens the whole ELA section.
                     $response['report']['English'] = array(
-                        "result_id" => isset($ps['result_id']) ? $ps['result_id'] : '',
-                        "cat_id" => isset($ps['cat_id']) ? $ps['cat_id'] : $_POST['pred_test_id'],
-                        "cat_name" => "English",
-                        "shortcode" => "English",
+                        "result_id" => $english_first_card ? $english_first_card['result_id'] : (isset($ps['result_id']) ? $ps['result_id'] : ''),
+                        "cat_id" => $english_first_card ? $english_first_card['cat_id'] : (isset($ps['cat_id']) ? $ps['cat_id'] : $_POST['pred_test_id']),
+                        "cat_name" => "English Language Arts",
+                        "shortcode" => "English Language Arts",
                         "pred_test_id" => isset($ps['pred_test_id']) ? $ps['pred_test_id'] : $_POST['pred_test_id'],
                         "course_id" => $test_id,
                         "date" => isset($ps['date']) ? $ps['date'] : '',
@@ -2992,7 +3085,7 @@ if ($_POST['action']) {
             } else {
                 $response['error'] = "Token does not exist!";
             }
-            break;    
+            break;
 
         case "progress-report":
 
@@ -3242,7 +3335,9 @@ if ($_POST['action']) {
                     foreach ($pred_test_list as $pl) {
                         $pred_name = getFldValueById("predic_test", "test_name", array("Predic_test_id" => $pl['Predic_test_id']));
 
-                        $preports = getQuery("result", "*", array("user_id" => $user_id, "Predic_test_id" => $pl['Predic_test_id'], "score!" => -1), "result_id desc", "1");
+                        // SHSAT also saves English/Math section rows under each result; report only the overall result.
+                        $shsat_parent_only = isShsatCourseId($test_id) ? array("ifnull(parent_id,0)" => 0) : array();
+                        $preports = getQuery("result", "*", array("user_id" => $user_id, "Predic_test_id" => $pl['Predic_test_id'], "score!" => -1) + $shsat_parent_only, "result_id desc", "1");
 
                         $tmp_report = [];
                         foreach ($preports as $r) {
@@ -4086,6 +4181,7 @@ if ($_POST['action']) {
 
                 $pred_test_report = [];
                 $pred_cat_name = [];
+                $review_cat_names = [];
                 $total_array = [];
                 $i = 0;
 
@@ -4100,6 +4196,7 @@ if ($_POST['action']) {
                     $cat_id = $p['cat_id'];
                     $cat_name = $cat['category_name'];
                     $total_array[$cat['cat_id']] = $p['number_of_questions'];
+                    $review_cat_names[$cat_id] = $cat_name;
                     $pred_cat_name[] = ["cat_id" => $cat_id, "cat_name" => $cat_name];
 
                     $tmp_score = getQuery("result", "*", array("user_id" => $user_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id, "score!" => -1, "parent_id" => $get_parent_id), "result_id desc", 1);
@@ -4126,18 +4223,93 @@ if ($_POST['action']) {
                 $cat_id = $_POST['cat_id'];
                 $response['cat_name'] = getFldValueByid("category", "category_name", array("cat_id" => $cat_id));
                 $response['cat_id'] = $cat_id;
+                $review_load_cat_ids = array($cat_id);
+                $shsat_groups = null;
+                if (isShsatCourseId($test_id)) {
+                    $shsat_groups = shsatPredictionCategoryGroups($test_id, $pred_cat_list);
+                }
+                if ($shsat_groups) {
+                    if (isset($shsat_groups['cat_to_group'][$_POST['cat_id']])) {
+                        $_POST['cat_id'] = (string)$shsat_groups['cat_to_group'][$_POST['cat_id']];
+                    }
+                    $cat_id = $_POST['cat_id'];
+                    $response['cat_id'] = $cat_id;
+                    if (isset($shsat_groups['groups'][$cat_id])) {
+                        $review_load_cat_ids = $shsat_groups['groups'][$cat_id]['cat_ids'];
+                        $response['cat_name'] = $shsat_groups['groups'][$cat_id]['category_name'];
+                    }
+                    $grouped_report = array();
+                    foreach ($shsat_groups['groups'] as $key => $g) {
+                        $group_total = 0;
+                        $group_correct = 0;
+                        $group_score = 0;
+                        $group_result_id = '';
+                        $group_result_date = '';
+                        $group_parent_id = '';
+                        $group_pred_test_id = $_POST['pred_test_id'];
+                        $member_count = count($g['cat_ids']);
+                        foreach ($g['cat_ids'] as $gid) {
+                            $member_name = isset($review_cat_names[$gid]) ? $review_cat_names[$gid] : '';
+                            if ($member_name === '' || !isset($pred_test_report[$member_name])) {
+                                continue;
+                            }
+                            $row = $pred_test_report[$member_name];
+                            $group_total += (int)$row['total_questions'];
+                            $group_correct += (int)$row['correct_answers'];
+                            if ($member_count === 1) {
+                                $group_score = (int)$row['score'];
+                                $group_result_id = $row['result_id'];
+                                $group_result_date = $row['result_date'];
+                                $group_parent_id = $row['parent_id'];
+                                $group_pred_test_id = $row['pred_test_id'];
+                            }
+                        }
+                        if ($member_count > 1 && (string)$key === (string)$cat_id) {
+                            $group_score = (int)$response['prediction_score'];
+                            $group_result_id = $_POST['result_id'];
+                            $group_result_date = $date;
+                            $group_parent_id = $get_parent_id;
+                        }
+                        $grouped_report[$g['category_name']] = array(
+                            "cat_name" => $g['category_name'],
+                            "result_id" => $group_result_id,
+                            "cat_id" => (string)$key,
+                            "pred_test_id" => $group_pred_test_id,
+                            "total_questions" => $group_total,
+                            "correct_answers" => $group_correct,
+                            "wrong_answers" => $group_total - $group_correct,
+                            "score" => $group_score,
+                            "result_date" => $group_result_date,
+                            "parent_id" => $group_parent_id
+                        );
+                    }
+                    if (!empty($grouped_report)) {
+                        $response['pred_test_cat_wise_scores'] = $grouped_report;
+                    }
+                }
                 $option_no = 5;
                 $i = 0;
+                $multi_section = count($review_load_cat_ids) > 1;
 
-                if (in_array($cat_id, $data['story_question'])) {
-                    $cat_result_id = getFldValueByid("result", "result_id", array("parent_id" => $get_parent_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id));
+                foreach ($review_load_cat_ids as $load_cat_id) {
+                $section_name = isset($review_cat_names[$load_cat_id]) ? $review_cat_names[$load_cat_id] : '';
+                $first_in_section = true;
+                $cat_result_id = getFldValueByid("result", "result_id", array("parent_id" => $get_parent_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $load_cat_id));
+                $cat_set_id = $pred_set_id;
+                if ($multi_section) {
+                    $member_set_id = (int)getFldValueById("result", "pred_set_id", array("result_id" => $cat_result_id));
+                    if ($member_set_id) {
+                        $cat_set_id = $member_set_id;
+                    }
+                }
 
-                    $story_list[$cat_id] = getQueryByJoin(array("question as q", "$exam_record_table as e"), "q.story_id", array("e.cat_id" => (int)$cat_id, "e.Predic_test_id" => $_POST['pred_test_id'], "e.user_id" => $user_id, "e.pred_set_id" => $pred_set_id, "e.result_id" => $cat_result_id), array("e.qid" => "q.qid"), "e.id", "", "", "q.story_id");
+                if (in_array($load_cat_id, $data['story_question'])) {
+                    $story_list[$load_cat_id] = getQueryByJoin(array("question as q", "$exam_record_table as e"), "q.story_id", array("e.cat_id" => (int)$load_cat_id, "e.Predic_test_id" => $_POST['pred_test_id'], "e.user_id" => $user_id, "e.pred_set_id" => $cat_set_id, "e.result_id" => $cat_result_id), array("e.qid" => "q.qid"), "e.id", "", "", "q.story_id");
 
-                    foreach ($story_list[$cat_id] as $a) {
+                    foreach ($story_list[$load_cat_id] as $a) {
                         $story[$a['story_id']] = getFldValueById("story", "story", array("story_id" => $a['story_id']));
 
-                        $data['question_test'][$a['story_id']] = getQueryByJoin(array("question as q", "$exam_record_table as e"), "q.*,e.*", array("e.cat_id" => (int)$cat_id, "e.user_id" => $user_id, "e.Predic_test_id" => $_POST['pred_test_id'], "e.result_id" => $cat_result_id, "q.story_id" => $a['story_id']), array("q.qid" => "e.qid"), 'e.id', '', '', "q.qid");
+                        $data['question_test'][$a['story_id']] = getQueryByJoin(array("question as q", "$exam_record_table as e"), "q.*,e.*", array("e.cat_id" => (int)$load_cat_id, "e.user_id" => $user_id, "e.Predic_test_id" => $_POST['pred_test_id'], "e.result_id" => $cat_result_id, "q.story_id" => $a['story_id']), array("q.qid" => "e.qid"), 'e.id', '', '', "q.qid");
 
                         foreach ($data['question_test'][$a['story_id']] as $d) {
 
@@ -4154,17 +4326,20 @@ if ($_POST['action']) {
                             $correct_answer = $data['alphabet'][$d['answer']] . " | Your answer is " .  $data['alphabet'][$d['user_ans']] . " | " . $text;
                             $explanation = html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['explanation'])));
 
-                            $qlist[] = array("story" => str_replace('"/uploads/', '"https://test-prep.asvab-tutoring.com/uploads/', html_entity_decode(html_entity_decode(html_entity_decode($story[$a['story_id']])))), "srno" => $i, "question" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['question']))), "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))), "correct_answer" => $correct_answer, "myanswer" => $d['user_ans'], "explanation" => $explanation);
+                            $review_question = array("story" => str_replace('"/uploads/', '"https://test-prep.asvab-tutoring.com/uploads/', html_entity_decode(html_entity_decode(html_entity_decode($story[$a['story_id']])))), "srno" => $i, "question" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['question']))), "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))), "correct_answer" => $correct_answer, "myanswer" => $d['user_ans'], "explanation" => $explanation);
+                            if ($multi_section) {
+                                $review_question["cat_id"] = $load_cat_id;
+                                $review_question["section_name"] = $section_name;
+                                $review_question["section_start"] = $first_in_section ? 1 : 0;
+                                $first_in_section = false;
+                            }
+                            $qlist[] = $review_question;
                         }
                     }
                 } else {
-                    $cat_result_id = getFldValueByid("result", "result_id", array("parent_id" => $get_parent_id, "Predic_test_id" => $_POST['pred_test_id'], "cat_id" => $cat_id));
+                    $questions[$load_cat_id] = getQueryByJoin(array("question as q", "$exam_record_table as e"), "q.*, e.*", array("e.cat_id" => $load_cat_id, "e.user_id" => $user_id, "e.Predic_test_id" => $_POST['pred_test_id'], "e.pred_set_id" => $cat_set_id, "e.result_id" => $cat_result_id), array("e.qid" => "q.qid"), "e.id", $total_array[$load_cat_id]);
 
-                    $questions[$cat_id] = getQueryByJoin(array("question as q", "$exam_record_table as e"), "q.*, e.*", array("e.cat_id" => $cat_id, "e.user_id" => $user_id, "e.Predic_test_id" => $_POST['pred_test_id'], "e.pred_set_id" => $pred_set_id, "e.result_id" => $cat_result_id), array("e.qid" => "q.qid"), "e.id", $total_array[$cat_id]);
-
-                    $i = 0;
-
-                    foreach ($questions[$cat_id] as $d) {
+                    foreach ($questions[$load_cat_id] as $d) {
 
                         $i++;
 
@@ -4182,16 +4357,32 @@ if ($_POST['action']) {
 
                         $explanation = html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['explanation'])));
 
-                        $qlist[] = array("srno" => $i, "question" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['question']))), "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))), "correct_answer" => $correct_answer, "myanswer" => $d['user_ans'], "explanation" => $explanation);
+                        $review_question = array("srno" => $i, "question" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['question']))), "option_a" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_a']))), "option_b" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_b']))), "option_c" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_c']))), "option_d" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_d']))), "option_e" => html_entity_decode(html_entity_decode(str_replace("&#92;", "\\", $d['option_e']))), "correct_answer" => $correct_answer, "myanswer" => $d['user_ans'], "explanation" => $explanation);
+                        if ($multi_section) {
+                            $review_question["cat_id"] = $load_cat_id;
+                            $review_question["section_name"] = $section_name;
+                            $review_question["section_start"] = $first_in_section ? 1 : 0;
+                            $first_in_section = false;
+                        }
+                        $qlist[] = $review_question;
                     }
                 }
+                }
 
-                $response['questions'] = $qlist;
+                if ($multi_section && !empty($qlist)) {
+                    $questions_by_section = array();
+                    foreach ($qlist as $qv) {
+                        $questions_by_section[$qv['section_name']][] = $qv;
+                    }
+                    $response['questions'] = $questions_by_section;
+                } else {
+                    $response['questions'] = $qlist;
+                }
             } else {
                 $response['error'] = "Token does not exist!";
             }
             break;
-
+        
         case "tutoring-pricing-web-url":
 
             if ($_POST['course_id'] == 28 || $_POST['course_id'] == 38 || $_POST['course_id'] == 39) {
@@ -4258,7 +4449,7 @@ if ($_POST['action']) {
                 $final_actual_score = isset($_POST['final_actual_score']) ? (int)$_POST['final_actual_score'] : 0;
                 $initial_practice_score = trim($_POST['initial_practice_score'] ?? '');
                 $helpfulness_rating = trim($_POST['helpfulness_rating'] ?? '');
-                $experience_text = trim($_POST['experience_text'] ?? '');
+                $experience_text = trim((string)($_POST['experience_text'] ?? ''));
                 $features_used = trim($_POST['features_used'] ?? '');
                 $share_permission = (isset($_POST['share_permission']) && $_POST['share_permission'] == '1') ? 1 : 0;
                 $platform = trim($_POST['platform'] ?? '');
@@ -4296,12 +4487,6 @@ if ($_POST['action']) {
                     break;
                 }
 
-                if ($experience_text == '') {
-                    $response['error'] = "Experience text is required.";
-                    $response['isSuccess'] = false;
-                    break;
-                }
-
                 if ($features_used !== '') {
                     $feature_list = array_filter(array_map('trim', explode(',', $features_used)));
                     $invalid_features = array_diff($feature_list, $allowed_features);
@@ -4317,21 +4502,34 @@ if ($_POST['action']) {
                     $features_used = null;
                 }
 
+                // insertTable() quotes values without escaping them, so escape free text here
                 $insert_data = array(
                     "user_id" => $user_id,
-                    "email" => $email,
-                    "course_name" => $course_name,
+                    "email" => mysqli_real_escape_string($configs['con'], (string)$email),
+                    "course_name" => mysqli_real_escape_string($configs['con'], (string)$course_name),
                     "final_actual_score" => $final_actual_score,
                     "initial_practice_score" => $initial_practice_score,
                     "features_used" => $features_used,
                     "helpfulness_rating" => $helpfulness_rating,
-                    "experience_text" => $experience_text,
+                    "experience_text" => mysqli_real_escape_string($configs['con'], $experience_text),
                     "share_permission" => $share_permission,
-                    "platform" => $platform,
+                    "platform" => mysqli_real_escape_string($configs['con'], $platform),
                     "submitted_at" => date("Y-m-d H:i:s")
                 );
 
+                // Leave optional fields out when empty so they're stored as NULL;
+                // insertTable() would write "" which strict MySQL rejects for the integer column.
+                if ($insert_data["initial_practice_score"] === null) {
+                    unset($insert_data["initial_practice_score"]);
+                }
+                if ($insert_data["features_used"] === null) {
+                    unset($insert_data["features_used"]);
+                }
+
+                // insertTable() echoes the SQL on failure, which would corrupt the JSON response
+                ob_start();
                 $insert_id = insertTable("app_review", $insert_data);
+                ob_end_clean();
 
                 if ($insert_id) {
                     $response["message"] = "Review submitted successfully!";
@@ -4342,10 +4540,11 @@ if ($_POST['action']) {
                 }
             } else {
                 $response['error'] = "Token does not exist!";
+                $response['isSuccess'] = false;
             }
 
             break;
-    
+
         case "tutoring-invitation-email":
 
             $mail = getDataByWhere("mailsetup", "*", array("mail_type" => "tutoring_invitation"));
@@ -4526,6 +4725,34 @@ if ($_POST['action']) {
             $response["isSuccess"] = true;
             $response["server_url"] = $urls["server_url"];
             $response["youtube_url"] = $urls["youtube_url"];
+            break;
+
+        case "check-allowed-app-version":
+            $postedCourseMatches = true;
+            $courseId = function_exists("appVersionResolvedCourseId")
+                ? appVersionResolvedCourseId($postedCourseMatches)
+                : (isset($_POST["course_id"]) ? (int)$_POST["course_id"] : 0);
+            $platform = isset($_POST["platform"]) ? $_POST["platform"] : "";
+            $updateRequired = function_exists("appVersionUpdateRequired")
+                && appVersionUpdateRequired($courseId, $platform);
+            $minimum = function_exists("appVersionAssignedMinimum")
+                ? appVersionAssignedMinimum($courseId, $platform)
+                : 0;
+
+            if ($updateRequired && function_exists("appVersionInvalidateToken")) {
+                $token = isset($_POST["authorizationToken"]) ? $_POST["authorizationToken"] : "";
+                appVersionInvalidateToken($token);
+            }
+
+            $response = array(
+                "status" => 200,
+                "isSuccess" => $postedCourseMatches,
+                "updateRequired" => $updateRequired,
+                "minVersionCode" => $minimum,
+                "message" => $updateRequired && function_exists("appVersionMessage")
+                    ? appVersionMessage($courseId, $platform)
+                    : ($postedCourseMatches ? "" : "Login error. Course does not match this account."),
+            );
             break;
     }
 
