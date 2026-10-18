@@ -107,7 +107,7 @@
 
             <div class="multi-edit-panel">
                 <div class="multi-edit-heading">
-                    <span>Multi edit</span>
+                    <span>Multi-Edit</span>
                     <strong id="selectedCount">Selected: 0</strong>
                 </div>
                 <table class="table table-bordered" style="margin-bottom:0">
@@ -129,8 +129,8 @@
                                 <option value="content">Content</option>
                             </select>
                         </td>
-                        <td width="25%">
-                            <button type="submit" class="btn btn-success" name="updateStudyData" value="1" style="width:100%">Update Selected</button>
+                        <td width="25%" rowspan="2">
+                            <button type="submit" class="btn btn-success" name="updateStudyData" value="1" style="width:100%;height:100%">Update Selected</button>
                         </td>
                     </tr>
                     <tr>
@@ -151,9 +151,6 @@
                             <select name="hierarchy_topic" id="bulkHierarchyTopic" class="form-control">
                                 <option value="">Select Topic</option>
                             </select>
-                        </td>
-                        <td>
-                            <button type="submit" class="btn btn-success" name="updateStudyHierarchy" value="1" style="width:100%">Set Subject, Chapter, and Topic</button>
                         </td>
                     </tr>
                 </table>
@@ -522,23 +519,26 @@ $('#bulkHierarchyChapter').on('change', function() {
     });
 });
 
-$('#studyBulkForm').on('submit', function(e) {
-    var submitter = e.originalEvent && e.originalEvent.submitter;
-    var action = submitter ? submitter.name : '';
+$('#studyBulkForm').on('submit', function() {
     var count = $('.study-check:checked').length;
+    var subject = $('#bulkHierarchySubject').val() || '';
+    var chapter = $('#bulkHierarchyChapter').val() || '';
+    var topic = $('#bulkHierarchyTopic').val() || '';
+    var field = $('#bulkField').val() || '';
     if (!count) {
         alert('Select at least one study.');
         return false;
     }
-    if (action === 'updateStudyHierarchy') {
-        if (!$('#bulkHierarchySubject').val() || !$('#bulkHierarchyChapter').val() || !$('#bulkHierarchyTopic').val()) {
-            alert('Choose a subject, chapter, and topic. Use Not set when there is no chapter or topic.');
-            return false;
-        }
-        return confirm('Set this subject, chapter, and topic on ' + count + ' selected ' + (count === 1 ? 'study' : 'studies') + '?');
+    if (!subject && !chapter && !topic && !field) {
+        alert('Choose a field, or a combination of subject, chapter, and topic to update.');
+        return false;
     }
-    if (!$('#bulkField').val()) {
-        alert('Choose a field to edit.');
+    if ((chapter || topic) && !subject) {
+        alert('Choose a subject before a chapter or topic.');
+        return false;
+    }
+    if (topic && !chapter) {
+        alert('Choose a chapter before a topic.');
         return false;
     }
     return confirm('Update ' + count + ' selected ' + (count === 1 ? 'study' : 'studies') + '?');

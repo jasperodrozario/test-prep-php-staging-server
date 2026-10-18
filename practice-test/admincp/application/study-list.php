@@ -29,15 +29,18 @@ $data['filter'] = $filter;
 if (!empty($_POST['updateStudyData'])) {
     $fieldMap = array(
         'study_title' => 'study_title',
-        'subject' => 'subject',
-        'chapter' => 'chapter',
-        'topic' => 'Topic',
         'tag' => 'tag',
         'type' => 'type',
         'content' => 'content',
     );
     $field = isset($_POST['study_field']) ? $_POST['study_field'] : '';
     $ids = (isset($_POST['ids']) && is_array($_POST['ids'])) ? $_POST['ids'] : array();
+    $subject = isset($_POST['hierarchy_subject']) ? trim($_POST['hierarchy_subject']) : '';
+    $chapter = isset($_POST['hierarchy_chapter']) ? trim($_POST['hierarchy_chapter']) : '';
+    $topic = isset($_POST['hierarchy_topic']) ? trim($_POST['hierarchy_topic']) : '';
+    $hasHierarchy = ($subject !== '' || $chapter !== '' || $topic !== '');
+    $hasField = ($field !== '');
+
     if ($field === 'content') {
         $value = isset($_POST['study_value_content']) ? trim($_POST['study_value_content']) : '';
     } elseif ($field === 'type') {
@@ -46,43 +49,6 @@ if (!empty($_POST['updateStudyData'])) {
         $value = isset($_POST['study_value']) ? trim($_POST['study_value']) : '';
     }
 
-    $updated = 0;
-    if (!isset($fieldMap[$field])) {
-        $data['msg'] = "Choose a field to update.";
-    } elseif (!$ids) {
-        $data['msg'] = "Select at least one study.";
-    } elseif (($field === 'study_title' || $field === 'subject') && $value === '') {
-        $data['msg'] = "Title and subject cannot be empty.";
-    } elseif ($field === 'type' && $value !== 'study' && $value !== 'skill') {
-        $data['msg'] = "Type must be study or skill.";
-    } else {
-        $column = $fieldMap[$field];
-        if (($column === 'chapter' || $column === 'Topic') && $value === '') {
-            $value = 'Not set';
-        }
-        foreach ($ids as $id) {
-            $id = (int)$id;
-            if ($id > 0) {
-                updateTable("study", array($column => $value), array("study_id" => $id));
-                $updated++;
-            }
-        }
-        $redirect = array();
-        foreach ($filter as $key => $filterValue) {
-            if ($filterValue !== '' && $filterValue !== 0) {
-                $redirect[$key] = $filterValue;
-            }
-        }
-        header("Location: study-list" . ($redirect ? "?" . http_build_query($redirect) : ""));
-        exit;
-    }
-}
-
-if (!empty($_POST['updateStudyHierarchy'])) {
-    $ids = (isset($_POST['ids']) && is_array($_POST['ids'])) ? $_POST['ids'] : array();
-    $subject = isset($_POST['hierarchy_subject']) ? trim($_POST['hierarchy_subject']) : '';
-    $chapter = isset($_POST['hierarchy_chapter']) ? trim($_POST['hierarchy_chapter']) : '';
-    $topic = isset($_POST['hierarchy_topic']) ? trim($_POST['hierarchy_topic']) : '';
     $redirect = array();
     foreach ($filter as $key => $filterValue) {
         if ($filterValue !== '' && $filterValue !== 0) {
@@ -90,49 +56,85 @@ if (!empty($_POST['updateStudyHierarchy'])) {
         }
     }
     $redirectUrl = "study-list" . ($redirect ? "?" . http_build_query($redirect) : "");
+    $hierarchyUpdate = array();
+    $error = '';
 
     if (!$ids) {
-        $data['msg'] = "Select at least one study.";
-    } elseif ($subject === '' || $chapter === '' || $topic === '') {
-        $data['msg'] = "Choose a subject, chapter, and topic.";
-    } else {
-        $subjectSql = mysqli_real_escape_string($configs['con'], $subject);
-        $subjectCount = getTotalRow("question", array("subject" => $subjectSql));
-        $chapterOk = ($chapter === 'Not set');
-        if (!$chapterOk) {
-            $chapterSql = mysqli_real_escape_string($configs['con'], $chapter);
-            $chapterOk = getTotalRow("question", array("subject" => $subjectSql, "chapter" => $chapterSql)) > 0;
-        }
-        if ($chapter === 'Not set') {
-            $topic = 'Not set';
-        }
-        $topicOk = ($topic === 'Not set');
-        if (!$topicOk && $chapterOk && $chapter !== 'Not set') {
-            $chapterSql = mysqli_real_escape_string($configs['con'], $chapter);
-            $topicSql = mysqli_real_escape_string($configs['con'], $topic);
-            $topicOk = getTotalRow("question", array("subject" => $subjectSql, "chapter" => $chapterSql, "topic" => $topicSql)) > 0;
-        }
+        $error = "Select at least one study.";
+    } elseif (!$hasHierarchy && !$hasField) {
+        $error = "Choose a field, or a combination of subject, chapter, and topic to update.";
+    }
 
-        if (!$subjectCount) {
-            $data['msg'] = "Choose a subject from the list.";
-        } elseif (!$chapterOk) {
-            $data['msg'] = "Choose a chapter listed under this subject, or Not set.";
-        } elseif (!$topicOk) {
-            $data['msg'] = "Choose a topic listed under this chapter, or Not set.";
+    if ($error === '' && $hasHierarchy) {
+        if ($subject === '') {
+            $error = "Choose a subject before a chapter or topic.";
         } else {
-            foreach ($ids as $id) {
-                $id = (int)$id;
-                if ($id > 0) {
-                    updateTable("study", array(
-                        "subject" => $subject,
-                        "chapter" => $chapter,
-                        "Topic" => $topic,
-                    ), array("study_id" => $id));
+            $subjectSql = mysqli_real_escape_string($configs['con'], $subject);
+            if (!getTotalRow("question", array("subject" => $subjectSql))) {
+                $error = "Choose a subject from the list.";
+            } else {
+                $hierarchyUpdate['subject'] = $subject;
+            }
+        }
+        if ($error === '' && $chapter !== '') {
+            $chapterOk = ($chapter === 'Not set');
+            if (!$chapterOk) {
+                $chapterSql = mysqli_real_escape_string($configs['con'], $chapter);
+                $chapterOk = getTotalRow("question", array("subject" => $subjectSql, "chapter" => $chapterSql)) > 0;
+            }
+            if (!$chapterOk) {
+                $error = "Choose a chapter listed under this subject, or Not set.";
+            } else {
+                $hierarchyUpdate['chapter'] = $chapter;
+                if ($chapter === 'Not set') {
+                    $hierarchyUpdate['Topic'] = 'Not set';
                 }
             }
-            header("Location: " . $redirectUrl);
-            exit;
         }
+        if ($error === '' && $topic !== '' && $chapter !== 'Not set') {
+            $topicOk = ($topic === 'Not set');
+            if (!$topicOk && $chapter !== '') {
+                $chapterSql = mysqli_real_escape_string($configs['con'], $chapter);
+                $topicSql = mysqli_real_escape_string($configs['con'], $topic);
+                $topicOk = getTotalRow("question", array("subject" => $subjectSql, "chapter" => $chapterSql, "topic" => $topicSql)) > 0;
+            }
+            if ($chapter === '') {
+                $error = "Choose a chapter before a topic.";
+            } elseif (!$topicOk) {
+                $error = "Choose a topic listed under this chapter, or Not set.";
+            } else {
+                $hierarchyUpdate['Topic'] = $topic;
+            }
+        }
+    }
+
+    if ($error === '' && $hasField) {
+        if (!isset($fieldMap[$field])) {
+            $error = "Choose a field to update.";
+        } elseif ($field === 'study_title' && $value === '') {
+            $error = "Title cannot be empty.";
+        } elseif ($field === 'type' && $value !== 'study' && $value !== 'skill') {
+            $error = "Type must be study or skill.";
+        }
+    }
+
+    if ($error !== '') {
+        $data['msg'] = $error;
+    } else {
+        foreach ($ids as $id) {
+            $id = (int)$id;
+            if ($id <= 0) {
+                continue;
+            }
+            if ($hierarchyUpdate) {
+                updateTable("study", $hierarchyUpdate, array("study_id" => $id));
+            }
+            if ($hasField) {
+                updateTable("study", array($fieldMap[$field] => $value), array("study_id" => $id));
+            }
+        }
+        header("Location: " . $redirectUrl);
+        exit;
     }
 }
 
