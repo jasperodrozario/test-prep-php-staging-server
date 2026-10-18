@@ -109,7 +109,7 @@ if($_REQUEST['page'])
             
 		break;
             
-       	case "video":	
+       	case "video":
        	     if($_REQUEST['del_id'])
 		     {
 			 	deleteData("file",array("id"=>$_REQUEST['del_id']));

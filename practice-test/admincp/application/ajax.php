@@ -619,6 +619,109 @@ if ($_POST['action']) {
 			flush();
 			break;
 
+		case "setStudyField":
+
+			$fieldMap = array(
+				'study_title' => 'study_title',
+				'subject' => 'subject',
+				'chapter' => 'chapter',
+				'topic' => 'Topic',
+				'tag' => 'tag',
+				'type' => 'type',
+				'content' => 'content',
+			);
+			$field = isset($_POST['field']) ? $_POST['field'] : '';
+			$studyId = isset($_POST['study_id']) ? (int)$_POST['study_id'] : 0;
+			$value = isset($_POST['value']) ? trim($_POST['value']) : '';
+			$response = array('ok' => false, 'msg' => 'Could not update this study.');
+
+			if ($studyId > 0 && isset($fieldMap[$field])) {
+				$column = $fieldMap[$field];
+				if (($column === 'chapter' || $column === 'Topic') && $value === '') {
+					$value = 'Not set';
+				}
+				if (($column === 'study_title' || $column === 'subject') && $value === '') {
+					$response['msg'] = 'This field cannot be empty.';
+				} elseif ($column === 'type' && $value !== 'study' && $value !== 'skill') {
+					$response['msg'] = 'Type must be study or skill.';
+				} else {
+					updateTable("study", array($column => $value), array("study_id" => $studyId));
+					$display = $value;
+					if ($column === 'content') {
+						$display = trim(preg_replace('/\s+/', ' ', strip_tags(html_entity_decode(html_entity_decode($value)))));
+						if (strlen($display) > 140) {
+							$display = substr($display, 0, 140) . '...';
+						}
+					}
+					$response = array('ok' => true, 'display' => $display, 'value' => $value);
+				}
+			}
+
+			echo json_encode($response);
+			flush();
+			break;
+
+		case "setStudyHierarchy":
+
+			$studyId = isset($_POST['study_id']) ? (int)$_POST['study_id'] : 0;
+			$subject = isset($_POST['subject']) ? trim($_POST['subject']) : '';
+			$chapter = isset($_POST['chapter']) ? trim($_POST['chapter']) : '';
+			$topic = isset($_POST['topic']) ? trim($_POST['topic']) : '';
+			$response = array('ok' => false, 'msg' => 'Could not update this study.');
+
+			if ($chapter === '') {
+				$chapter = 'Not set';
+			}
+			if ($topic === '') {
+				$topic = 'Not set';
+			}
+
+			if ($studyId <= 0 || $subject === '') {
+				$response['msg'] = 'Choose a subject.';
+			} else {
+				$subjectSql = mysqli_real_escape_string($configs['con'], $subject);
+				$subjectCount = getTotalRow("question", array("subject" => $subjectSql));
+				$chapterOk = ($chapter === 'Not set');
+				if (!$chapterOk) {
+					$chapterSql = mysqli_real_escape_string($configs['con'], $chapter);
+					$chapterOk = getTotalRow("question", array("subject" => $subjectSql, "chapter" => $chapterSql)) > 0;
+				}
+				$topicOk = ($topic === 'Not set');
+				if (!$topicOk && $chapterOk && $chapter !== 'Not set') {
+					$chapterSql = mysqli_real_escape_string($configs['con'], $chapter);
+					$topicSql = mysqli_real_escape_string($configs['con'], $topic);
+					$topicOk = getTotalRow("question", array("subject" => $subjectSql, "chapter" => $chapterSql, "topic" => $topicSql)) > 0;
+				}
+				if ($chapter === 'Not set') {
+					$topic = 'Not set';
+					$topicOk = true;
+				}
+
+				if (!$subjectCount) {
+					$response['msg'] = 'Choose a subject from the list.';
+				} elseif (!$chapterOk) {
+					$response['msg'] = 'Choose a chapter listed under this subject, or Not set.';
+				} elseif (!$topicOk) {
+					$response['msg'] = 'Choose a topic listed under this chapter, or Not set.';
+				} else {
+					updateTable("study", array(
+						"subject" => $subject,
+						"chapter" => $chapter,
+						"Topic" => $topic,
+					), array("study_id" => $studyId));
+					$response = array(
+						'ok' => true,
+						'subject' => $subject,
+						'chapter' => $chapter,
+						'topic' => $topic,
+					);
+				}
+			}
+
+			echo json_encode($response);
+			flush();
+			break;
+
 		case "getStudyChapters":
 
 			$category = isset($_POST['category']) ? trim($_POST['category']) : "";
