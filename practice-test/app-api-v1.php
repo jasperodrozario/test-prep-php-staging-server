@@ -891,10 +891,7 @@ if ($_POST['action']) {
 
                 $user_id = $user['user_id'];
                 $name = $user['first_name'] . " " . $user['last_name'];
-                $token = getToken();
-
-                updateTable("user", ["activation_status" => "D"], ["user_id" => $user_id]);
-                updateTable("login", ["auth_token" => $token], ["user_id" => $user_id]);
+                $email = $user['email'];
 
                 $mail = getDataByWhere("mailsetup", "*", array("mail_type" => "Delete Account"));
                 $body = html_entity_decode($mail['template']);
@@ -902,8 +899,16 @@ if ($_POST['action']) {
                 $mail_body = str_replace("{name}", $name, $body);
                 $mail_body = html_entity_decode($mail_body);
                 if ($_SERVER['HTTP_HOST'] != "localhost") {
-                    smtpmailer($user['email'], $setting['support_mail'], ucwords($configs['dotcom']), $subject, $mail_body);
+                    smtpmailer($email, $setting['support_mail'], ucwords($configs['dotcom']), $subject, $mail_body);
                 }
+
+                deleteData("login", array("user_id" => $user_id));
+                deleteData("picture", array("user_id" => $user_id));
+                deleteData("subscription", array("user_id" => $user_id));
+                deleteData("exam", array("user_id" => $user_id));
+                deleteData("result", array("user_id" => $user_id));
+                deleteData("report", array("user_id" => $user_id));
+                deleteData("user", array("user_id" => $user_id));
 
                 $response["status"] = 200;
                 $response["isSuccess"] = true;

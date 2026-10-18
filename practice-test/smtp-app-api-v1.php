@@ -713,7 +713,21 @@ if ($_POST['action']) {
                 break;
             }
 
-            $exists = getTotalRowsByJoin(array("user as u", "subscription as s"), array("u.email" => $_POST['email'], "u.password" => md5($_POST['password']), "u.activation_status!" => "D", "u.reg_at like " => "'%app%'", "[or]" => "s.course_id in(49, 48, 47, 46)"), array("u.user_id" => "s.user_id"));
+            $exists = getTotalRowsByJoin(
+                array("user as u", "subscription as s", "asvab_course_variants as v"),
+                array(
+                    "u.email" => $_POST['email'],
+                    "u.password" => md5($_POST['password']),
+                    "u.activation_status!" => "D",
+                    "u.reg_at like " => "'%app%'",
+                    "v.parent_asvab_course_id" => 60,
+                    "v.is_active" => 1
+                ),
+                array(
+                    "u.user_id" => "s.user_id",
+                    "s.course_id" => "v.main_course_id"
+                )
+            );
 
             if ($exists) {
                 $token = getToken();
@@ -778,10 +792,7 @@ if ($_POST['action']) {
 
                 $user_id = $user['user_id'];
                 $name = $user['first_name'] . " " . $user['last_name'];
-                $token = getToken();
-
-                updateTable("user", ["activation_status" => "D"], ["user_id" => $user_id]);
-                updateTable("login", ["auth_token" => $token], ["user_id" => $user_id]);
+                $email = $user['email'];
 
                 $mail = getDataByWhere("mailsetup", "*", array("mail_type" => "Delete Account"));
                 $body = html_entity_decode($mail['template']);
@@ -789,8 +800,16 @@ if ($_POST['action']) {
                 $mail_body = str_replace("{name}", $name, $body);
                 $mail_body = html_entity_decode($mail_body);
                 if ($_SERVER['HTTP_HOST'] != "localhost") {
-                    smtpmailer($user['email'], $setting['support_mail'], ucwords($configs['dotcom']), $subject, $mail_body);
+                    smtpmailer($email, $setting['support_mail'], ucwords($configs['dotcom']), $subject, $mail_body);
                 }
+
+                deleteData("login", array("user_id" => $user_id));
+                deleteData("picture", array("user_id" => $user_id));
+                deleteData("subscription", array("user_id" => $user_id));
+                deleteData("exam", array("user_id" => $user_id));
+                deleteData("result", array("user_id" => $user_id));
+                deleteData("report", array("user_id" => $user_id));
+                deleteData("user", array("user_id" => $user_id));
 
                 $response["status"] = 200;
                 $response["isSuccess"] = true;
@@ -798,11 +817,11 @@ if ($_POST['action']) {
             } else {
                 $response["status"] = 201;
                 $response["isSuccess"] = "false";
-                $response["message"] = "Login faild";
+                $response["message"] = "Login failed";
             }
 
             break;
-
+    
         case "forgot-password":
 
             $exist = getTotalRow("user", array("email" => $_POST['email']));
