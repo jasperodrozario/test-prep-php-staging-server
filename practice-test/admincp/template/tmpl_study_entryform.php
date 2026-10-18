@@ -34,7 +34,7 @@
             <td align="left" width=20%>Chapter</td>
             <td>
                 <?php $currentChapter = isset($db_value['chapter']) ? $db_value['chapter'] : ''; ?>
-                <select name="chapter" id="chapter" class="form-control" required>
+                <select name="chapter" id="chapter" class="form-control">
                     <option value="">Select Chapter</option>
                     <?php foreach ($chapter_list as $chapterName): ?>
                         <option value="<?= htmlspecialchars($chapterName, ENT_QUOTES, 'UTF-8') ?>" <?= ($currentChapter === $chapterName) ? 'selected' : '' ?>>
@@ -54,7 +54,7 @@
             <td align="left" width=20%>Topic</td>
             <td>
                 <?php $currentTopic = isset($db_value['Topic']) ? $db_value['Topic'] : ''; ?>
-                <select name="Topic" id="Topic" class="form-control" required>
+                <select name="Topic" id="Topic" class="form-control">
                     <option value="">Select Topic</option>
                     <?php foreach ($topic_list as $topicName): ?>
                         <option value="<?= htmlspecialchars($topicName, ENT_QUOTES, 'UTF-8') ?>" <?= ($currentTopic === $topicName) ? 'selected' : '' ?>>

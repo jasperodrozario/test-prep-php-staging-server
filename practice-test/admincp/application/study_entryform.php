@@ -8,6 +8,13 @@ $data['breadcrumb']=array("Study List"=>"study-list", "Add Lesson Study"=>"");
  
 if($_POST['SBMT_REG']):
 
+	if (!isset($_POST['chapter']) || trim($_POST['chapter']) === '') {
+		$_POST['chapter'] = 'Not set';
+	}
+	if (!isset($_POST['Topic']) || trim($_POST['Topic']) === '') {
+		$_POST['Topic'] = 'Not set';
+	}
+
    	if($_POST['study_id']):
    	    $r=updateTable("study",$_POST,array("study_id"=>$_POST['study_id']));
 	    $study_id=$_POST['study_id'];
