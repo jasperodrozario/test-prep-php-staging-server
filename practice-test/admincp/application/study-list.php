@@ -203,7 +203,7 @@ if ($_GET['page']) {
         $query['study_id in  '] = "(SELECT study_id FROM " . $configs['prev'] . "lesson_study WHERE " . implode(" AND ", $linkWhere) . ")";
     }
 
-    $data['db_list'] = getQuery("study", "*", $query, "study_title");
+    $data['db_list'] = getQuery("study", "*", $query, "study_id DESC");
     $data['total'] = getTotalRow("study", $query);
 }
 
