@@ -97,7 +97,7 @@
 											<li data-study-id="<?= $dd['id_lesson_study'] ?>" style="margin-bottom: 8px; background-color: #f8f9fa; border: 1px solid #ccc; border-radius: 4px; padding: 2px; display: flex; align-items: center;">
 												<div style="flex: 1;">
 													&nbsp;&nbsp;&nbsp;
-													<?= $study_title ?>
+													<?= (int) $dd['study_id'] ?> - <?= htmlspecialchars($study_title, ENT_QUOTES, 'UTF-8') ?>
 												</div>
 												<span class="btn delete-btn" style="color: white; background-color: #dc3545; border: none; padding: 3px 6px; border-radius: 4px; cursor: pointer; margin-left: 10px;" onclick="deleteStudy(<?= $dd['id_lesson_study'] ?>)">
 													&#x2715;
@@ -142,7 +142,7 @@
 											<option value='0'><?= $study_filter_category === '' ? 'Select a subject first' : 'Select Study Title' ?></option>
 											<?php foreach ($filtered_studies as $dd): ?>
 												<option value="<?= (int) $dd['study_id'] ?>">
-													<?= htmlspecialchars($dd['study_title'], ENT_QUOTES, 'UTF-8') ?>
+													<?= (int) $dd['study_id'] ?> - <?= htmlspecialchars($dd['study_title'], ENT_QUOTES, 'UTF-8') ?>
 												</option>
 											<?php endforeach; ?>
 										</select>

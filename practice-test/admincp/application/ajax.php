@@ -685,7 +685,7 @@ if ($_POST['action']) {
 				$studies = getQuery("study", "study_id, study_title", $cond, "study_title");
 				if ($studies) {
 					while ($row = mysqli_fetch_assoc($studies)) {
-						$option .= "<option value='" . (int) $row['study_id'] . "'>" . htmlspecialchars($row['study_title'], ENT_QUOTES, 'UTF-8') . "</option>";
+						$option .= "<option value='" . (int) $row['study_id'] . "'>" . (int) $row['study_id'] . " - " . htmlspecialchars($row['study_title'], ENT_QUOTES, 'UTF-8') . "</option>";
 					}
 				}
 			}
