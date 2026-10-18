@@ -129,7 +129,7 @@ if (isset($_POST['upload_btn'])) {
                 while (($row_data = fgetcsv($handle, 2000, ",")) !== FALSE) {
                     // Bind parameters and execute the statement for each row
                     $insert_data = array();
-                    $field_names = array("study_title", "content", "category", "chapter", "Topic", "tag");
+                    $field_names = array("study_title", "content", "subject", "chapter", "Topic", "tag");
                     
                         foreach ($field_names as $index => $field_name) {
                             // Check if the field has a value and if so, add it to the insert array

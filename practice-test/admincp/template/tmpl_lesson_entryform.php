@@ -111,12 +111,38 @@
 										<!--                             Selected studies will be displayed here -->
 									</ul>
 									<br>
+									<div style="display: flex; gap: 8px; margin-bottom: 8px;">
+										<select id="study_filter_category" class="form-control">
+											<option value="">Select Subject</option>
+											<?php foreach ($study_categories as $studyCategory): ?>
+												<option value="<?= htmlspecialchars($studyCategory, ENT_QUOTES, 'UTF-8') ?>" <?= ($study_filter_category === $studyCategory) ? 'selected' : '' ?>>
+													<?= htmlspecialchars($studyCategory, ENT_QUOTES, 'UTF-8') ?>
+												</option>
+											<?php endforeach; ?>
+										</select>
+										<select id="study_filter_chapter" class="form-control">
+											<option value="">Select Chapter</option>
+											<?php foreach ($study_chapters as $studyChapter): ?>
+												<option value="<?= htmlspecialchars($studyChapter, ENT_QUOTES, 'UTF-8') ?>" <?= ($study_filter_chapter === $studyChapter) ? 'selected' : '' ?>>
+													<?= htmlspecialchars($studyChapter, ENT_QUOTES, 'UTF-8') ?>
+												</option>
+											<?php endforeach; ?>
+										</select>
+										<select id="study_filter_topic" class="form-control">
+											<option value="">Select Topic</option>
+											<?php foreach ($study_topics as $studyTopic): ?>
+												<option value="<?= htmlspecialchars($studyTopic, ENT_QUOTES, 'UTF-8') ?>" <?= ($study_filter_topic === $studyTopic) ? 'selected' : '' ?>>
+													<?= htmlspecialchars($studyTopic, ENT_QUOTES, 'UTF-8') ?>
+												</option>
+											<?php endforeach; ?>
+										</select>
+									</div>
 									<div style="display: flex; align-items: center;">
-										<select name='study_id' id='study_id' size=1 class='form-control' required style="margin-right: 10px;">
-											<option value='0'>Select Study Title</option>
-											<?php foreach ($all_studies as $dd): ?>
-												<option value="<?= $dd['study_id'] ?>" <?= ($db_value['study_id'] == $dd['study_id']) ? 'selected' : '' ?>>
-													<?= $dd['study_title'] ?>
+										<select name='study_id' id='study_id' size=1 class='form-control' style="margin-right: 10px;">
+											<option value='0'><?= $study_filter_category === '' ? 'Select a subject first' : 'Select Study Title' ?></option>
+											<?php foreach ($filtered_studies as $dd): ?>
+												<option value="<?= (int) $dd['study_id'] ?>">
+													<?= htmlspecialchars($dd['study_title'], ENT_QUOTES, 'UTF-8') ?>
 												</option>
 											<?php endforeach; ?>
 										</select>
@@ -407,6 +433,69 @@
 
 	<script>
 		let selectedStudies = [];
+		var studyAjaxUrl = "<?= $configs['vpath'] . $configs['admin_dir']; ?>/ajax";
+
+		function loadFilteredStudies() {
+			var category = $('#study_filter_category').val() || '';
+			var chapter = $('#study_filter_chapter').val() || '';
+			var topic = $('#study_filter_topic').val() || '';
+
+			$.ajax({
+				type: "POST",
+				url: studyAjaxUrl,
+				dataType: "json",
+				data: {
+					action: "getFilteredStudies",
+					category: category,
+					chapter: chapter,
+					topic: topic
+				}
+			}).done(function(response) {
+				$('#study_id').html(response.options || "<option value='0'>Select Study Title</option>");
+			});
+		}
+
+		$('#study_filter_category').on('change', function() {
+			$('#study_filter_chapter').html("<option value=''>Select Chapter</option>");
+			$('#study_filter_topic').html("<option value=''>Select Topic</option>");
+			var category = $(this).val() || '';
+			if (!category) {
+				loadFilteredStudies();
+				return;
+			}
+			$.ajax({
+				type: "POST",
+				url: studyAjaxUrl,
+				dataType: "json",
+				data: { action: "getStudyChapters", category: category }
+			}).done(function(response) {
+				$('#study_filter_chapter').html(response.options || "<option value=''>Select Chapter</option>");
+				loadFilteredStudies();
+			});
+		});
+
+		$('#study_filter_chapter').on('change', function() {
+			$('#study_filter_topic').html("<option value=''>Select Topic</option>");
+			var category = $('#study_filter_category').val() || '';
+			var chapter = $(this).val() || '';
+			if (!category || !chapter) {
+				loadFilteredStudies();
+				return;
+			}
+			$.ajax({
+				type: "POST",
+				url: studyAjaxUrl,
+				dataType: "json",
+				data: { action: "getStudyTopics", category: category, chapter: chapter }
+			}).done(function(response) {
+				$('#study_filter_topic').html(response.options || "<option value=''>Select Topic</option>");
+				loadFilteredStudies();
+			});
+		});
+
+		$('#study_filter_topic').on('change', function() {
+			loadFilteredStudies();
+		});
 
 		function addStudy() {
 			const studySelect = document.getElementById('study_id');

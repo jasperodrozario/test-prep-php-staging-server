@@ -12,7 +12,13 @@ if(!$data['menu_open_id'])
 
 $data['category']= getQuery("category","*",array("course_id"=>$_REQUEST['course_id']),"category_name");
 $data['course']= getQuery("course","*","","course_name");
-$data['all_studies']= getQuery("study","*","","study_title");
+$data['study_categories'] = array();
+$data['study_chapters'] = array();
+$data['study_topics'] = array();
+$data['filtered_studies'] = array();
+$data['study_filter_category'] = '';
+$data['study_filter_chapter'] = '';
+$data['study_filter_topic'] = '';
 
 if($_REQUEST['page'])
 {
@@ -45,6 +51,61 @@ if($_REQUEST['page'])
 		     $data['db_value']=getDataByWhere("lesson","*",array("lesson_id"=>$_REQUEST['lesson_id'],"cat_id"=>$_REQUEST['cat_id'],"course_id"=>$_REQUEST['course_id']));
             
             $data['added_study']=getQuery("lesson_study","*",array("lesson_id"=>$_REQUEST['lesson_id'],"cat_id"=>$_REQUEST['cat_id'],"course_id"=>$_REQUEST['course_id']));
+
+            $categoryRows = getQuery("study", "DISTINCT subject", "subject IS NOT NULL AND subject != ''", "subject");
+            if ($categoryRows) {
+                while ($row = mysqli_fetch_assoc($categoryRows)) {
+                    if ($row['subject'] !== '') {
+                        $data['study_categories'][] = $row['subject'];
+                    }
+                }
+            }
+
+            $lessonCategoryName = (string) getFldValueById("category", "category_name", array("cat_id" => $_REQUEST['cat_id']));
+            $lessonCourseName = (string) getFldValueById("course", "course_name", array("course_id" => $_REQUEST['course_id']));
+            if (in_array($lessonCategoryName, $data['study_categories'], true)) {
+                $data['study_filter_category'] = $lessonCategoryName;
+            } elseif (in_array($lessonCourseName, $data['study_categories'], true)) {
+                $data['study_filter_category'] = $lessonCourseName;
+            }
+
+            if ($data['study_filter_category'] !== '') {
+                $categorySql = mysqli_real_escape_string($configs['con'], $data['study_filter_category']);
+                $chapterRows = getQuery("study", "DISTINCT chapter", "subject=\"" . $categorySql . "\" AND chapter IS NOT NULL AND chapter != ''", "chapter");
+                if ($chapterRows) {
+                    while ($row = mysqli_fetch_assoc($chapterRows)) {
+                        if ($row['chapter'] !== '') {
+                            $data['study_chapters'][] = $row['chapter'];
+                        }
+                    }
+                }
+
+                $lessonTitle = isset($data['db_value']['Lesson_title']) ? trim($data['db_value']['Lesson_title']) : '';
+                if ($lessonTitle !== '' && in_array($lessonTitle, $data['study_chapters'], true)) {
+                    $data['study_filter_chapter'] = $lessonTitle;
+                }
+
+                $studyCond = array("subject" => $data['study_filter_category']);
+                if ($data['study_filter_chapter'] !== '') {
+                    $chapterSql = mysqli_real_escape_string($configs['con'], $data['study_filter_chapter']);
+                    $topicRows = getQuery("study", "DISTINCT Topic", "subject=\"" . $categorySql . "\" AND chapter=\"" . $chapterSql . "\" AND Topic IS NOT NULL AND Topic != ''", "Topic");
+                    if ($topicRows) {
+                        while ($row = mysqli_fetch_assoc($topicRows)) {
+                            if ($row['Topic'] !== '') {
+                                $data['study_topics'][] = $row['Topic'];
+                            }
+                        }
+                    }
+                    $studyCond["chapter"] = $data['study_filter_chapter'];
+                }
+
+                $studyRows = getQuery("study", "study_id, study_title", $studyCond, "study_title");
+                if ($studyRows) {
+                    while ($row = mysqli_fetch_assoc($studyRows)) {
+                        $data['filtered_studies'][] = $row;
+                    }
+                }
+            }
             
 		break;
             

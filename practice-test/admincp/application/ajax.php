@@ -569,6 +569,131 @@ if ($_POST['action']) {
 			flush();
 			break;
 
+		case "getQuestionChaptersBySubject":
+
+			$subject = isset($_POST['subject']) ? trim($_POST['subject']) : "";
+			$option = "<option value=''>Select Chapter</option>";
+
+			if ($subject !== "") {
+				$subjectSql = mysqli_real_escape_string($configs['con'], $subject);
+				$chapters = getQuery("question", "DISTINCT chapter", "subject=\"" . $subjectSql . "\" AND chapter IS NOT NULL AND chapter != ''", "chapter");
+				if ($chapters) {
+					while ($row = mysqli_fetch_assoc($chapters)) {
+						$chapter = $row['chapter'];
+						if ($chapter === '') {
+							continue;
+						}
+						$safe = htmlspecialchars($chapter, ENT_QUOTES, 'UTF-8');
+						$option .= "<option value='" . $safe . "'>" . $safe . "</option>";
+					}
+				}
+			}
+
+			echo json_encode(array("options" => $option));
+			flush();
+			break;
+
+		case "getQuestionTopicsBySubjectChapter":
+
+			$subject = isset($_POST['subject']) ? trim($_POST['subject']) : "";
+			$chapter = isset($_POST['chapter']) ? trim($_POST['chapter']) : "";
+			$option = "<option value=''>Select Topic</option>";
+
+			if ($subject !== "" && $chapter !== "") {
+				$subjectSql = mysqli_real_escape_string($configs['con'], $subject);
+				$chapterSql = mysqli_real_escape_string($configs['con'], $chapter);
+				$topics = getQuery("question", "DISTINCT topic", "subject=\"" . $subjectSql . "\" AND chapter=\"" . $chapterSql . "\" AND topic IS NOT NULL AND topic != ''", "topic");
+				if ($topics) {
+					while ($row = mysqli_fetch_assoc($topics)) {
+						$topic = $row['topic'];
+						if ($topic === '') {
+							continue;
+						}
+						$safe = htmlspecialchars($topic, ENT_QUOTES, 'UTF-8');
+						$option .= "<option value='" . $safe . "'>" . $safe . "</option>";
+					}
+				}
+			}
+
+			echo json_encode(array("options" => $option));
+			flush();
+			break;
+
+		case "getStudyChapters":
+
+			$category = isset($_POST['category']) ? trim($_POST['category']) : "";
+			$option = "<option value=''>Select Chapter</option>";
+
+			if ($category !== "") {
+				$categorySql = mysqli_real_escape_string($configs['con'], $category);
+				$chapters = getQuery("study", "DISTINCT chapter", "subject=\"" . $categorySql . "\" AND chapter IS NOT NULL AND chapter != ''", "chapter");
+				if ($chapters) {
+					while ($row = mysqli_fetch_assoc($chapters)) {
+						$chapter = $row['chapter'];
+						if ($chapter === '') {
+							continue;
+						}
+						$option .= "<option value='" . htmlspecialchars($chapter, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($chapter, ENT_QUOTES, 'UTF-8') . "</option>";
+					}
+				}
+			}
+
+			echo json_encode(array("options" => $option));
+			flush();
+			break;
+
+		case "getStudyTopics":
+
+			$category = isset($_POST['category']) ? trim($_POST['category']) : "";
+			$chapter = isset($_POST['chapter']) ? trim($_POST['chapter']) : "";
+			$option = "<option value=''>Select Topic</option>";
+
+			if ($category !== "" && $chapter !== "") {
+				$categorySql = mysqli_real_escape_string($configs['con'], $category);
+				$chapterSql = mysqli_real_escape_string($configs['con'], $chapter);
+				$topics = getQuery("study", "DISTINCT Topic", "subject=\"" . $categorySql . "\" AND chapter=\"" . $chapterSql . "\" AND Topic IS NOT NULL AND Topic != ''", "Topic");
+				if ($topics) {
+					while ($row = mysqli_fetch_assoc($topics)) {
+						$topic = $row['Topic'];
+						if ($topic === '') {
+							continue;
+						}
+						$option .= "<option value='" . htmlspecialchars($topic, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($topic, ENT_QUOTES, 'UTF-8') . "</option>";
+					}
+				}
+			}
+
+			echo json_encode(array("options" => $option));
+			flush();
+			break;
+
+		case "getFilteredStudies":
+
+			$category = isset($_POST['category']) ? trim($_POST['category']) : "";
+			$chapter = isset($_POST['chapter']) ? trim($_POST['chapter']) : "";
+			$topic = isset($_POST['topic']) ? trim($_POST['topic']) : "";
+			$option = "<option value='0'>" . ($category === "" ? "Select a subject first" : "Select Study Title") . "</option>";
+
+			if ($category !== "") {
+				$cond = array("subject" => mysqli_real_escape_string($configs['con'], $category));
+				if ($chapter !== "") {
+					$cond["chapter"] = mysqli_real_escape_string($configs['con'], $chapter);
+				}
+				if ($topic !== "") {
+					$cond["Topic"] = mysqli_real_escape_string($configs['con'], $topic);
+				}
+				$studies = getQuery("study", "study_id, study_title", $cond, "study_title");
+				if ($studies) {
+					while ($row = mysqli_fetch_assoc($studies)) {
+						$option .= "<option value='" . (int) $row['study_id'] . "'>" . htmlspecialchars($row['study_title'], ENT_QUOTES, 'UTF-8') . "</option>";
+					}
+				}
+			}
+
+			echo json_encode(array("options" => $option));
+			flush();
+			break;
+
 		case "add-study":
 
 			$r = insertTable("lesson_study", array("study_id" => $_POST['study_id'], "course_id" => $_POST['course_id'], "cat_id" => $_POST['cat_id'], "lesson_id" => $_POST['lesson_id']));

@@ -13,8 +13,8 @@
                 </tr>
                 
                 <tr>
-                    <td width="20%">Category</td>
-                    <td><?php echo $db_value['category'];?></td>
+                    <td width="20%">Subject</td>
+                    <td><?php echo $db_value['subject'];?></td>
                 </tr>
                 
                 <tr>

@@ -11,23 +11,62 @@
         </tr>
 
         <tr>
-            <td align="left" width=20%>Category</td>
+            <td align="left" width=20%>Subject</td>
             <td>
-                <input type="text" class='form-control' name='category'   value="<?php echo $db_value['category']?>"  required>
+                <?php $currentSubject = isset($db_value['subject']) ? $db_value['subject'] : ''; ?>
+                <select name="subject" id="subject" class="form-control" required>
+                    <option value="">Select Subject</option>
+                    <?php foreach ($subject_list as $subjectName): ?>
+                        <option value="<?= htmlspecialchars($subjectName, ENT_QUOTES, 'UTF-8') ?>" <?= ($currentSubject === $subjectName) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($subjectName, ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; ?>
+                    <?php if ($currentSubject !== '' && !in_array($currentSubject, $subject_list, true)): ?>
+                        <option value="<?= htmlspecialchars($currentSubject, ENT_QUOTES, 'UTF-8') ?>" selected>
+                            <?= htmlspecialchars($currentSubject, ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endif; ?>
+                </select>
             </td>
         </tr>
         
         <tr>
             <td align="left" width=20%>Chapter</td>
             <td>
-                <input type="text" class='form-control' name='chapter'   value="<?php echo $db_value['chapter']?>"  required>
+                <?php $currentChapter = isset($db_value['chapter']) ? $db_value['chapter'] : ''; ?>
+                <select name="chapter" id="chapter" class="form-control" required>
+                    <option value="">Select Chapter</option>
+                    <?php foreach ($chapter_list as $chapterName): ?>
+                        <option value="<?= htmlspecialchars($chapterName, ENT_QUOTES, 'UTF-8') ?>" <?= ($currentChapter === $chapterName) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($chapterName, ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; ?>
+                    <?php if ($currentChapter !== '' && !in_array($currentChapter, $chapter_list, true)): ?>
+                        <option value="<?= htmlspecialchars($currentChapter, ENT_QUOTES, 'UTF-8') ?>" selected>
+                            <?= htmlspecialchars($currentChapter, ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endif; ?>
+                </select>
             </td>
         </tr>
         
         <tr>
             <td align="left" width=20%>Topic</td>
             <td>
-                <input type="text" class='form-control' name='Topic'   value="<?php echo $db_value['Topic']?>" required>
+                <?php $currentTopic = isset($db_value['Topic']) ? $db_value['Topic'] : ''; ?>
+                <select name="Topic" id="Topic" class="form-control" required>
+                    <option value="">Select Topic</option>
+                    <?php foreach ($topic_list as $topicName): ?>
+                        <option value="<?= htmlspecialchars($topicName, ENT_QUOTES, 'UTF-8') ?>" <?= ($currentTopic === $topicName) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($topicName, ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; ?>
+                    <?php if ($currentTopic !== '' && !in_array($currentTopic, $topic_list, true)): ?>
+                        <option value="<?= htmlspecialchars($currentTopic, ENT_QUOTES, 'UTF-8') ?>" selected>
+                            <?= htmlspecialchars($currentTopic, ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endif; ?>
+                </select>
             </td>
         </tr>
         
@@ -73,6 +112,46 @@ KindEditor.ready(function(K)
 {
 	editor = K.create('#content', {
 		allowFileManager : true
+	});
+});
+
+var studyAjaxUrl = "<?= $configs['vpath'] . $configs['admin_dir']; ?>/ajax";
+
+function resetStudyTopic() {
+	$('#Topic').html("<option value=''>Select Topic</option>");
+}
+
+$('#subject').on('change', function() {
+	$('#chapter').html("<option value=''>Select Chapter</option>");
+	resetStudyTopic();
+	var subject = $(this).val() || '';
+	if (!subject) {
+		return;
+	}
+	$.ajax({
+		type: "POST",
+		url: studyAjaxUrl,
+		dataType: "json",
+		data: { action: "getQuestionChaptersBySubject", subject: subject }
+	}).done(function(response) {
+		$('#chapter').html(response.options || "<option value=''>Select Chapter</option>");
+	});
+});
+
+$('#chapter').on('change', function() {
+	resetStudyTopic();
+	var subject = $('#subject').val() || '';
+	var chapter = $(this).val() || '';
+	if (!subject || !chapter) {
+		return;
+	}
+	$.ajax({
+		type: "POST",
+		url: studyAjaxUrl,
+		dataType: "json",
+		data: { action: "getQuestionTopicsBySubjectChapter", subject: subject, chapter: chapter }
+	}).done(function(response) {
+		$('#Topic').html(response.options || "<option value=''>Select Topic</option>");
 	});
 });
 </script>
